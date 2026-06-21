@@ -57,7 +57,8 @@ def recommend_coldstart(perfil: ColdStartProfile, k: int = 5):
 @app.get("/propensity/{user_id}", response_model=PropensityBreakdown)
 def propensity(user_id: str):
     """Propensión al clic por SECTOR y por PRODUCTO de un usuario conocido (modelo plano M2).
-    Probabilidades one-vs-rest (independientes, 0–1; no suman 1), corregidas al prior real."""
+    Devuelve p_click (cruda, escala balanceada) y p_real (corregida al prior real; por el
+    desbalanceo, es la que debe usarse). One-vs-rest (independientes, 0–1; no suman 1)."""
     if service is None:
         raise HTTPException(503, "Servicio no inicializado")
     return service.propensity(user_id)
@@ -66,7 +67,8 @@ def propensity(user_id: str):
 @app.post("/propensity", response_model=PropensityBreakdown)
 def propensity_coldstart(perfil: ColdStartProfile):
     """Propensión al clic por SECTOR y por PRODUCTO de un usuario nuevo (modelo plano M2 + perfil).
-    Probabilidades one-vs-rest (independientes, 0–1; no suman 1), corregidas al prior real."""
+    Devuelve p_click (cruda, escala balanceada) y p_real (corregida al prior real; por el
+    desbalanceo, es la que debe usarse). One-vs-rest (independientes, 0–1; no suman 1)."""
     if service is None:
         raise HTTPException(503, "Servicio no inicializado")
     return service.propensity_coldstart(perfil.model_dump())

@@ -153,16 +153,23 @@ class RecommenderService:
         cols = [np.full(n, user_vals[name], dtype=float) if name in user_vals
                 else cat[name].values.astype(float) for name in self.all_names]
         X = np.column_stack(cols)
-        p_real = self._prior_correct(self.flat_model.predict_proba(X)[:, 1])  # prob realista
+        p_raw = self.flat_model.predict_proba(X)[:, 1]   # cruda (escala de entrenamiento balanceado)
+        p_real = self._prior_correct(p_raw)              # corregida al prior real de producción
         tmp = cat[["product_new", "sector"]].copy()
-        tmp["p"] = p_real
+        tmp["p_raw"] = p_raw
+        tmp["p_real"] = p_real
         # Sector de cada categoría: el más frecuente (algunas categorías tocan 2 sectores).
         sector_de = tmp.groupby("product_new")["sector"].agg(lambda s: s.mode().iloc[0])
-        prod = tmp.groupby("product_new")["p"].mean().sort_values(ascending=False)
-        sect = tmp.groupby("sector")["p"].mean().sort_values(ascending=False)
+        prod_raw = tmp.groupby("product_new")["p_raw"].mean()
+        prod = tmp.groupby("product_new")["p_real"].mean().sort_values(ascending=False)
+        sect_raw = tmp.groupby("sector")["p_raw"].mean()
+        sect = tmp.groupby("sector")["p_real"].mean().sort_values(ascending=False)
+        # Se ordena por p_real (relevante); p_click es la salida cruda del modelo.
         out = {"source": source,
-               "sectores": [{"sector": s, "p_click": round(float(v), 4)} for s, v in sect.items()],
-               "productos": [{"producto": pr, "sector": sector_de[pr], "p_click": round(float(v), 4)}
+               "sectores": [{"sector": s, "p_click": round(float(sect_raw[s]), 4),
+                             "p_real": round(float(v), 4)} for s, v in sect.items()],
+               "productos": [{"producto": pr, "sector": sector_de[pr],
+                              "p_click": round(float(prod_raw[pr]), 4), "p_real": round(float(v), 4)}
                              for pr, v in prod.items()]}
         if extra:
             out.update(extra)

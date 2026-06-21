@@ -5,7 +5,7 @@ This chapter closes the pipeline with its applied dimension: an example deployme
 
 \section{Deployment}
 
-As a demonstration of productisation, an example REST API (FastAPI) was implemented to serve the recommendations: for a known user it returns its precomputed top-5 in \textit{batch}; for a new user it applies the cold-start pipeline (\textit{features} $\rightarrow$ demographic cluster $\rightarrow$ cluster affinities); and it falls back to popularity as a last resort. The API also exposes a \texttt{/propensity} \textit{endpoint} that, from the flat M2 model, returns for a user or a profile the click probability broken down by sector and by product (independent \textit{one-vs-rest} probabilities, corrected to the true prior), which is the operational way of deciding what to send to whom. It is not a production service, but an illustration of the inference flow.
+As a demonstration of productisation, an example REST API (FastAPI) was implemented to serve the recommendations: for a known user it returns its precomputed top-5 in \textit{batch}; for a new user it applies the cold-start pipeline (\textit{features} $\rightarrow$ demographic cluster $\rightarrow$ cluster affinities); and it falls back to popularity as a last resort. The API also exposes a \texttt{/propensity} \textit{endpoint} that, from the flat M2 model, returns for a user or a profile the click probability broken down by sector and by product (independent \textit{one-vs-rest} probabilities, given both raw and corrected to the true prior), which is the operational way of deciding what to send to whom. It is not a production service, but an illustration of the inference flow.
 
 \subsection{API specification}
 
@@ -46,26 +46,26 @@ To make the input and output concrete, consider a new user (cold start). The req
 }
 \end{lstlisting}
 
-returns the click probability broken down by sector and by product (truncated here to the top entries). The probabilities are \textit{one-vs-rest} and corrected to the true prior, so they do not add up to one:
+returns the click probability broken down by sector and by product (truncated here to the top entries). Each entry gives \texttt{p\_click}, the model's raw output on the balanced training scale, and \texttt{p\_real}, the same probability corrected to the true production prior. They are \textit{one-vs-rest} (independent), so they do not add up to one:
 
 \begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize,caption={Response --- \texttt{POST /propensity} (output, abridged)},captionpos=b]
 {
   "source": "plano_coldstart",
   "user_id": null,
   "sectores": [
-    {"sector": "motor",   "p_click": 0.041},
-    {"sector": "seguros", "p_click": 0.028},
-    {"sector": "teleco",  "p_click": 0.021}
+    {"sector": "motor",   "p_click": 0.40, "p_real": 0.041},
+    {"sector": "seguros", "p_click": 0.31, "p_real": 0.028},
+    {"sector": "teleco",  "p_click": 0.25, "p_real": 0.021}
   ],
   "productos": [
-    {"producto": "car_leasing",   "sector": "motor",  "p_click": 0.046},
-    {"producto": "car_insurance", "sector": "motor",  "p_click": 0.039},
-    {"producto": "mobile_plan",   "sector": "teleco", "p_click": 0.022}
+    {"producto": "car_leasing",   "sector": "motor",  "p_click": 0.42, "p_real": 0.046},
+    {"producto": "car_insurance", "sector": "motor",  "p_click": 0.38, "p_real": 0.039},
+    {"producto": "mobile_plan",   "sector": "teleco", "p_click": 0.26, "p_real": 0.022}
   ]
 }
 \end{lstlisting}
 
-These probabilities are low in absolute terms because they are expressed at the true production prior ($\approx 2$\,\%): a value such as $0{,}046$ does not indicate a low propensity but roughly twice the average click rate, i.e.\ an above-average prospect. This is the expected scale once the sampling bias is corrected, and it is exactly the value on which the ROI decision rule ($p_\text{real}\cdot\text{CPL}\ge$ marginal cost) operates.
+Because the model is trained on a balanced 1:1 sample ($\approx 24$\,\% prevalence), the raw output \texttt{p\_click} overestimates the real click rate; owing to this strong class imbalance it must be corrected to the true prior ($\approx 2$\,\%) before any business decision, which yields \texttt{p\_real} (prior-shift correction of Dal Pozzolo et al., Chapter~\ref{cap:propension}). The correction is monotonic, so it does not change the ranking of sectors or products; \texttt{p\_real} is the value the ROI decision rule ($p_\text{real}\cdot\text{CPL}\ge$ marginal cost) operates on. For instance, a raw $0{,}42$ maps to $0{,}046$, i.e.\ roughly twice the average click rate (an above-average prospect).
 
 The same profile sent to \texttt{POST /recommend/coldstart} returns, instead, the top-5 product categories of the user's demographic cluster:
 

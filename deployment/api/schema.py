@@ -40,21 +40,24 @@ class Recommendation(BaseModel):
 
 class SectorProb(BaseModel):
     sector: str
-    p_click: float
+    p_click: float       # cruda (escala de entrenamiento balanceado ~24 %)
+    p_real: float        # corregida al prior real de producción (≈2 %)
 
 
 class ProductProb(BaseModel):
     producto: str
     sector: str          # sector al que pertenece la categoría de producto
-    p_click: float
+    p_click: float       # cruda (escala de entrenamiento balanceado ~24 %)
+    p_real: float        # corregida al prior real de producción (≈2 %)
 
 
 class PropensityBreakdown(BaseModel):
     """Propensión al clic por sector y por producto (modelo plano M2).
 
     Las probabilidades son one-vs-rest: cada una es la probabilidad independiente de que el
-    usuario clique si se le envía ese sector/producto. NO suman 1. Están corregidas al prior
-    real de producción (≈2 %)."""
+    usuario clique si se le envía ese sector/producto. NO suman 1. Cada item incluye p_click
+    (cruda, escala de entrenamiento balanceado ~24 %) y p_real (corregida al prior real de
+    producción ≈2 %); por el fuerte desbalanceo de clases, la decisión de negocio usa p_real."""
     source: str
     sectores: list[SectorProb]
     productos: list[ProductProb]
