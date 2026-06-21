@@ -21,7 +21,22 @@ It is worth clarifying why the silhouette is indeed useful here to choose the \e
 
 \subsection{Results}
 
-The autoencoder space (4 latent dimensions) outperformed PCA and the original in clustering cohesion measured by silhouette (0,344 versus 0,142 and 0,129 at $k=2$). KMeans with $k=10$ was selected on that space. The 10 clusters present interpretable differences: the largest ($n\approx4.900$; 13,8\,\%) groups the modal profile, whereas the minority ones ($n\approx1.500$) capture profiles of large dwellings or small municipalities. Figure~\ref{fig:umap_m0} shows the UMAP projection of the clusters.
+The autoencoder space (4 latent dimensions) outperformed PCA and the original in clustering cohesion measured by silhouette (0,344 versus 0,142 and 0,129 at $k=2$). KMeans with $k=10$ was selected on that space. The 10 clusters present interpretable differences: the largest ($n\approx4.900$; 13,8\,\%) groups the modal profile, whereas the minority ones ($n\approx1.500$) capture profiles of large dwellings or small municipalities. Table~\ref{tab:m0_space} summarises the silhouette of the three candidate spaces, and Figure~\ref{fig:umap_m0} shows the UMAP projection of the clusters.
+
+\begin{table}[htbp]
+\centering
+\caption{M0: selection of the embedding space (silhouette at $k=2$; higher is better).}
+\label{tab:m0_space}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Space} & \textbf{Dimensions} & \textbf{Silhouette ($k{=}2$)} \\
+\midrule
+Original (standardised)        & 10 & 0,129 \\
+PCA ($\geq$80\,\% variance)     & 8  & 0,142 \\
+\textbf{Autoencoder} (adopted) & 4  & \textbf{0,344} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{figure}[htbp]
 \centering
@@ -53,4 +68,20 @@ The dimensionality reduction was carried out with PCA, fixing 26 components (exp
 
 \subsection{Results}
 
-KMeans with $k=12$ was selected (silhouette 0,347) over GMM ($k=9$, silhouette 0,249) and HDBSCAN (0,210; excluded due to 46\,\% of \textit{outliers}). The distribution of the segments reflects the skewness of the dataset: segment 3 groups 39,1\,\% of the users ($n=13.858$) with a \textit{click rate} of 0,01 (a single open with no click on insurance); at the opposite extreme, segments 1 and 2 concentrate high-activity users (\textit{click rates} 0,95 and 0,99) but only 8,3\,\% of the base. This segmentation is the one used by the recommender (Chapter~\ref{cap:recomendador}).
+KMeans with $k=12$ was selected (silhouette 0,347) over GMM ($k=9$, silhouette 0,249) and HDBSCAN (0,210; excluded due to 46\,\% of \textit{outliers}). The distribution of the segments reflects the skewness of the dataset: segment 3 groups 39,1\,\% of the users ($n=13.858$) with a \textit{click rate} of 0,01 (a single open with no click on insurance); at the opposite extreme, segments 1 and 2 concentrate high-activity users (\textit{click rates} 0,95 and 0,99) but only 8,3\,\% of the base. Table~\ref{tab:m1_algos} summarises this comparison. This segmentation is the one used by the recommender (Chapter~\ref{cap:recomendador}).
+
+\begin{table}[htbp]
+\centering
+\caption{M1: comparison of clustering algorithms on the PCA space (silhouette; higher is better).}
+\label{tab:m1_algos}
+\small
+\begin{tabular}{lcccl}
+\toprule
+\textbf{Algorithm} & \textbf{$k$} & \textbf{Silhouette} & \textbf{Outliers} & \textbf{Decision} \\
+\midrule
+\textbf{KMeans} (adopted) & 12 & \textbf{0,347} & 0\,\%  & full coverage, no dominant cluster \\
+GMM                       & 9  & 0,249          & 0\,\%  & lower cohesion \\
+HDBSCAN                   & -- & 0,210          & 46\,\% & excluded (too many outliers) \\
+\bottomrule
+\end{tabular}
+\end{table}
