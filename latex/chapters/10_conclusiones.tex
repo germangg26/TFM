@@ -16,6 +16,28 @@ The third lesson is that, in this problem, what most limits performance is not t
 ceiling, so the value of this work lies in the methodology.
 \end{hallazgo}
 
+\subsection*{Summary of model selection}
+
+Table~\ref{tab:model_selection} consolidates, for each module, the options compared, the decision criterion and the method finally adopted, so that the rationale for every choice can be seen at a glance.
+
+\begin{table}[htbp]
+\centering
+\caption{Model selection summary: options compared, decision criterion and adopted method, by module.}
+\label{tab:model_selection}
+\small
+\begin{tabular}{p{1.5cm}p{4.0cm}p{2.2cm}p{4.7cm}}
+\toprule
+\textbf{Module} & \textbf{Options compared} & \textbf{Criterion} & \textbf{Decision and rationale} \\
+\midrule
+M0 (demographic) & PCA vs autoencoder (vs raw space) & Silhouette ($k{=}2$); $k$ by ARI stability & Autoencoder (4D), $k{=}10$: highest cohesion (silhouette 0,344 vs 0,142) and stable across resamples. \\
+M1 (behavioural) & KMeans vs GMM vs HDBSCAN & Silhouette + cluster balance & KMeans: full coverage with no dominant cluster. \\
+M2 (propensity) & User-only vs product features; flat vs hierarchical; five algorithms & PR-AUC (user-grouped GroupKFold) & LightGBM, flat, with product: PR-AUC 0,402 vs 0,322 (user-only) and 0,313 (popularity); the flat model beats the hierarchical one across all algorithms. \\
+M3 (recommender) & Popularity vs demographic cluster vs behavioural segment & HR@5 / NDCG (leakage-free) & Popularity is not beaten (HR@5 0,629 vs 0,586); the cluster recommender is kept for interpretability and cold start, not for ranking gains. \\
+M4 (forecast) & Prophet vs naïve vs moving average & MAE (rolling backtest) & The naïve baselines are preferred: Prophet does not beat them (MAE 750 vs 502) on this short series. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Main conclusions}
 
 This work has developed a comprehensive machine-learning \textit{framework} for optimising email marketing campaigns in the Spanish market, covering the full cycle from raw data ingestion through to personalised recommendation, demand forecasting and an example deployment. Beyond the modules, the main contribution is methodological: a reproducible pipeline that takes every decision in a justified manner (leakage-free validation, comparison against trivial \textit{baselines} before adopting a model, correction of sampling bias and statistical testing) and that distinguishes with evidence which signal is useful for each problem, which model deserves to be deployed and at what cost. Its value does not reside in a metric of maximum accuracy, but in a disciplined process that also reports what does \emph{not} work. Read in this way, the work functions as a guide for developing a data project aimed at maximising ROI: each stage shows what to build, how to validate it and how to ground the decision to deploy or not, including the decision \emph{not} to launch a campaign when the economics of the channel do not justify it.

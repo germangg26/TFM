@@ -20,7 +20,7 @@ Each method orders the categories by its own criterion (the recommender by the s
 
 \section{Results}
 
-The recommender generates the top-5 categories at the cluster level. Table~\ref{tab:m3_results} and Figure~\ref{fig:m3_recommender} compare the recommender (leakage-free) with the baselines over 1.573 users with a click in test.
+The recommender generates the top-5 categories at the cluster level. Table~\ref{tab:m3_results} compares the recommender (leakage-free) with the baselines over 1.573 users with a click in test.
 
 \begin{table}[htbp]
 \centering
@@ -37,12 +37,6 @@ Cluster-level recommender (M1)             & 0,586 & 0,774 & 0,521 & 0,439 \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.85\textwidth]{fig_m3_recommender}
-\caption{Comparison of the cluster-level recommender (M1 segment, no temporal leakage) against the popularity and demographic-cluster baselines (temporal test).}
-\label{fig:m3_recommender}
-\end{figure}
 
 Once the leakage has been removed, the cluster-level recommender does not beat popularity on any metric. Popularity achieves a better HR@5 (0,629 vs.\ 0,586; McNemar test $p_{\text{Holm}}=3{,}4\times10^{-8}$, the baseline wins in 102 users against 35), and also a better HR@10, NDCG@10 and MAP@10. The Friedman test on the NDCG@10 confirms that there are differences between the three methods ($\chi^2=142$, $p\approx10^{-31}$), although its overall effect size is small (Kendall's W $=0{,}05$), because two of the three methods are almost identical. The Wilcoxon post-hoc with Holm correction makes this precise: popularity and demographic cluster are equivalent to each other ($p_{\text{Holm}}=0{,}31$; rank-biserial effect size $|r|=0{,}06$, negligible), whereas both beat the cluster-level recommender with a large effect size ($p_{\text{Holm}}<10^{-22}$; $|r|=0{,}65$ and $0{,}54$). The inferiority of the recommender is therefore not merely statistically significant: it is of considerable magnitude. The advantage of the behavioural recommender observed with the \emph{contaminated} segment (HR@5 of 0,687) was a leakage artefact (an inflation of $\approx0{,}10$ in HR@5).
 

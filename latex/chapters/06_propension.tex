@@ -69,7 +69,7 @@ inappropriate validation choice inflates the metrics in problems with \textit{fe
 \subsection{Contribution of the product features}
 \label{sec:m2-variables}
 
-We first compare which \emph{features} contribute: Variant A is a per-category model with only user features (the traditional demographic approach) and Variant B adds product features (category, CPL, marketing attributes aggregated by sector and email subject text \textit{embeddings}). Table~\ref{tab:m2_models} and Figure~\ref{fig:m2_models} summarise the results (PR-AUC with 95\,\% \textit{bootstrap} confidence interval, user-grouped GroupKFold validation).
+We first compare which \emph{features} contribute: Variant A is a per-category model with only user features (the traditional demographic approach) and Variant B adds product features (category, CPL, marketing attributes aggregated by sector and email subject text \textit{embeddings}). Table~\ref{tab:m2_models} summarises the results (PR-AUC with 95\,\% \textit{bootstrap} confidence interval, user-grouped GroupKFold validation).
 
 \begin{table}[htbp]
 \centering
@@ -86,19 +86,12 @@ User features only                              & 0,322 & [0,316--0,328] & 0,612
 \end{tabular}
 \end{table}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.8\textwidth]{fig_m2_models}
-\caption{PR-AUC of the different M2 strategies with 95\% confidence interval. The dashed line marks chance (prevalence 0,238).}
-\label{fig:m2_models}
-\end{figure}
-
 The model with product features reaches a PR-AUC of 0,402, well above the user-only model ($\approx+0{,}08$) and the popularity baseline ($\approx+0{,}09$), both differences with $p\approx0$ (paired \textit{bootstrap} test). The user-only model is statistically indistinguishable from the popularity baseline: the scheme that uses only user features barely personalises. The subject text \textit{embeddings} are a central piece of that product signal.
 
 \subsection{Comparison of algorithms and architecture}
 \label{sec:m2-algos}
 
-With the features fixed, five algorithms are compared (a multilayer perceptron neural network, LightGBM, HistGradientBoosting, Random Forest and logistic regression) under the two architectures: the \emph{flat} model (a single model estimates $P(\text{click}\mid u,\text{producto})$) and the \emph{hierarchical} one ($p_\text{sector}\cdot p_\text{producto}$), all on the same user-grouped GroupKFold partitions. Table~\ref{tab:m2_algos} gives the metric panel of the flat model and Figure~\ref{fig:m2_algos} contrasts the two architectures.
+With the features fixed, five algorithms are compared (a multilayer perceptron neural network, LightGBM, HistGradientBoosting, Random Forest and logistic regression) under the two architectures: the \emph{flat} model (a single model estimates $P(\text{click}\mid u,\text{producto})$) and the \emph{hierarchical} one ($p_\text{sector}\cdot p_\text{producto}$), all on the same user-grouped GroupKFold partitions. Table~\ref{tab:m2_algos} gives the metric panel of the flat model across the algorithms; the comparison of the two architectures is discussed below.
 
 \begin{table}[htbp]
 \centering
@@ -116,13 +109,6 @@ Neural network (MLP)           & 0,378 & 0,661 & 0,174 & 0,432 & 0,207 \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.78\textwidth]{fig_m2_algos}
-\caption{PR-AUC of each algorithm under the two architectures (flat versus hierarchical). The flat one outperforms the hierarchical one across all algorithms; the neural network comes last in both.}
-\label{fig:m2_algos}
-\end{figure}
 
 Three conclusions can be drawn. First, the flat architecture outperforms the hierarchical one across the five algorithms ($\Delta$PR-AUC between $-0{,}014$ and $-0{,}028$): multiplying by the sector probability adds error and decalibrates the probabilities (the \textit{Brier} score worsens from $\approx0{,}17$ to $\approx0{,}21$); the flat model is therefore adopted. Second, the neural network comes last in both architectures, a result consistent with the recent evidence that, on tabular data, tree-based methods outperform deep learning~\cite{grinsztajn2022}; here, with imbalanced classes and weak signal, a more complex model is not justified. Third, the differences between the tree methods are small (Random Forest and LightGBM are tied within the confidence interval); LightGBM is kept for its native handling of categorical features and missing values and for being the industry standard. No algorithm breaks away from the PR-AUC $0{,}40$ region: the ceiling is set by the data, not the algorithm.
 

@@ -23,7 +23,7 @@ On the hold-out of the last 4 weeks, Prophet obtains MAE\,=\,447 clicks/week, RM
 The 4-week hold-out is too short for a reliable comparison. A \textbf{one-step rolling
 backtest} (14 origins) was carried out: for each week the model is trained on everything prior and predicts the
 following one, comparing Prophet with two naïve baselines (\emph{naïve}: next week = the last one;
-and moving average of 3). Table~\ref{tab:m4_backtest} and Figure~\ref{fig:m4_backtest} show the result.
+and moving average of 3). Table~\ref{tab:m4_backtest} shows the result.
 
 \begin{table}[htbp]
 \centering
@@ -40,12 +40,6 @@ Moving average 3  & 583,7 & 703,7 \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=0.62\textwidth]{fig_m4_backtest}
-\caption{Mean absolute error (MAE) of the M4 one-step rolling backtest. The naïve baselines beat Prophet.}
-\label{fig:m4_backtest}
-\end{figure}
 
 The result is clear in terms of point error: on this short and volatile series, \textbf{the naïve baselines beat
 Prophet} (MAE 750 against 502 for the \emph{naïve}). That said, with only 14 origins the Diebold-Mariano
