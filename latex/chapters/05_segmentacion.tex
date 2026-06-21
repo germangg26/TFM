@@ -1,0 +1,56 @@
+\chapter{Módulo M0/M1 — Segmentación de clientes}
+\label{cap:segmentacion}
+
+Este capítulo agrupa los dos niveles de segmentación no supervisada de usuarios, presentando para cada uno su método y sus resultados. La segmentación \textbf{demográfica} (M0) asigna un perfil a usuarios nuevos sin historial; la \textbf{comportamental} (M1) agrupa a los usuarios activos por su patrón de interacción.
+
+\section{M0 — Segmentación demográfica (arranque en frío)}
+
+\subsection{Método}
+
+La segmentación demográfica tiene como objetivo asignar un perfil de comportamiento esperado a usuarios nuevos para los que no existe historial de interacciones (\textit{cold start}). Se aplica sobre los 35.405 usuarios del dataset a partir de diez variables de perfil: edad \emph{categorizada} en bandas (\texttt{age\_cat}, las mismas que en M2), género, situación laboral, estado civil, tenencia de vehículo, tamaño del hogar, número de habitaciones, índice de poder adquisitivo (IPA), tipo de municipio y distancia al núcleo urbano más próximo. Las variables categóricas se codificaron ordinalmente de acuerdo con su significado semántico antes de aplicar el escalado estándar.
+
+\paragraph{Selección del espacio de \textit{embedding}.} Se compararon tres espacios de representación para el clustering posterior mediante el coeficiente de silueta con $k=2$ y $n=5.000$ muestras: (1) el espacio original estandarizado (10 dimensiones); (2) una reducción por PCA hasta explicar el 80\,\% de la varianza (8 componentes); y (3) un \textit{embedding} no lineal mediante autoencoder (4 dimensiones latentes). El autoencoder tiene la arquitectura:
+\[
+10 \xrightarrow{\text{Dense}(64)} \xrightarrow{\text{BN}} \xrightarrow{\text{Dense}(32)} \xrightarrow{\text{Dense}(4)} \xrightarrow{\text{Dense}(32)} \xrightarrow{\text{BN}} \xrightarrow{\text{Dense}(64)} \xrightarrow{\text{Dense}(10)}
+\]
+(donde BN denota \textit{batch normalization}) y entrenado con pérdida MSE, optimizador Adam, \textit{batch size} 256, \textit{validation split} 0,1 y parada temprana (paciencia 10 épocas). El autoencoder obtuvo la mayor silueta y fue seleccionado como espacio de clustering (resultados abajo). Se eligió frente a PCA por su capacidad de capturar relaciones \emph{no lineales} entre las variables de perfil, que una reducción lineal no recoge~\cite{hinton2006}. No obstante, conviene matizar que, dado que el espacio demográfico resulta prácticamente un continuo (como muestra más adelante el diagnóstico de estabilidad de $k$), \textbf{PCA habría sido una alternativa más simple y de resultados comparables}; el autoencoder aporta una mejora modesta de cohesión a cambio de mayor complejidad.
+
+Conviene aclarar por qué la silueta sí sirve aquí para elegir el \emph{espacio} pero no para elegir el \emph{número de clusters}: para comparar espacios se fija un mismo $k=2$ y se mide cuál separa mejor con ese $k$ común (una comparación \emph{relativa} y justa); en cambio, al barrer $k$ la silueta crece de forma monótona y su máximo no señala un número natural de grupos, por lo que para esa segunda decisión se recurre a la estabilidad (ARI).
+
+\paragraph{Selección de $k$.} Se evaluaron KMeans para $k \in \{2,\ldots,12\}$ con cuatro métricas: silueta y Calinski-Harabasz (maximizar), Davies-Bouldin (minimizar) e inercia (codo). Como se verá, la silueta y el Calinski-Harabasz crecen de forma \emph{monótona} con $k$ (sin máximo interior), lo que indica que el espacio demográfico es prácticamente un continuo sin un número natural de grupos. Por ello la elección de $k$ se basó en la \textbf{estabilidad} de las asignaciones mediante un diagnóstico por re-muestreo (\textit{Adjusted Rand Index}, ARI~\cite{hubert1985}). Como referencia se ejecutó también HDBSCAN (búsqueda de \texttt{min\_cluster\_size}); su mejor configuración produjo 18 clusters con un 5,5\,\% de usuarios sin asignar (ruido). Se seleccionó KMeans por su \textbf{cobertura total} (0\,\% de ruido) y un número de grupos más manejable.
+
+\subsection{Resultados}
+
+El espacio del autoencoder (4 dimensiones latentes) superó al PCA y al original en cohesión de clustering medida por silueta (0,344 frente a 0,142 y 0,129 en $k=2$). Se seleccionó KMeans con $k=10$ sobre dicho espacio. Los 10 clusters presentan diferencias interpretables: el de mayor tamaño ($n\approx4.900$; 13,8\,\%) agrupa al perfil modal, mientras que los minoritarios ($n\approx1.500$) recogen perfiles de grandes viviendas o de municipios pequeños. La Figura~\ref{fig:umap_m0} muestra la proyección UMAP de los clusters.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.80\textwidth]{fig_umap_m0}
+\caption{Proyección UMAP bidimensional del espacio latente de 4 dimensiones del autoencoder (M0). Cada punto es un usuario coloreado por su cluster demográfico ($k=10$).}
+\label{fig:umap_m0}
+\end{figure}
+
+\paragraph{Diagnóstico de estabilidad de $k$.} Las métricas puntuales no fijan un $k$ óptimo: la silueta crece de forma monótona con $k$ (de 0,35 en $k=2$ a 0,46 en $k=12$), señal de que el espacio demográfico es prácticamente un \emph{continuo} sin grupos naturales bien separados; su máximo coincide con el tope del rango de búsqueda y no es un criterio fiable. Para decidir con rigor se evaluó la \textbf{estabilidad} del clustering repitiendo KMeans 15 veces sobre submuestras del 80\,\% y midiendo el ARI entre re-muestreos, que cuantifica cuán consistentes son las asignaciones. La Figura~\ref{fig:kstability} resume el barrido. El ARI se mantiene \textbf{muy alto en todo el rango} ($0{,}96$--$1{,}0$): el clustering es estable para casi cualquier $k$, de modo que la estabilidad por sí sola no señala un único valor ($k=10$ obtiene ARI $0{,}984$, muy próximo al máximo, que está en $k=11$ con $0{,}998$). \textbf{Se adopta $k=10$}: dentro de esa meseta de alta estabilidad es un valor que combina buena cohesión (silueta $\approx0{,}43$), una granularidad interpretable y coherencia con el resto del \textit{pipeline}. Este valor se propaga a los módulos dependientes (propensión M2, arranque en frío de M3 y modelo inverso).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_k_stability}
+\caption{Estabilidad del clustering demográfico frente al número de clusters $k$. Izquierda: silueta media por submuestreo. Derecha: ARI entre pares de re-muestreos (1 = clustering idéntico). Se marca $k=10$ (adoptado). El ARI es alto en todo el rango ($0{,}96$--$1{,}0$), por lo que la estabilidad no señala un único $k$ y se elige $k=10$ por cohesión, granularidad y coherencia del \textit{pipeline}.}
+\label{fig:kstability}
+\end{figure}
+
+\section{M1 — Segmentación comportamental}
+
+\subsection{Método}
+
+La segmentación comportamental (M1) aplica el mismo marco sobre un espacio de características que combina el historial de interacciones con los atributos de usuario. Se construyen 46 variables en tres bloques:
+\begin{itemize}
+    \item \textbf{Actividad} (7 variables): número de eventos, clics, aperturas, productos, sectores, recencia y tasa de clic. Las variables de conteo se transforman con $\log(1+x)$ para reducir el sesgo de la distribución.
+    \item \textbf{Sector} (18 variables): frecuencia de eventos y tasa de clic por sector (9 sectores).
+    \item \textbf{Producto} (21 variables): frecuencia de eventos por categoría de producto (top 20 + \textit{other}).
+\end{itemize}
+La reducción dimensional se realizó con PCA fijando 26 componentes (varianza explicada $\geq 90$\,\%). Sobre el espacio PCA se evaluaron KMeans ($k \in \{4,\ldots,12\}$), GMM ($k \in \{3,\ldots,9\}$) y HDBSCAN, con el requisito adicional de que ningún cluster supere el 60\,\% de la base.
+
+\subsection{Resultados}
+
+KMeans con $k=12$ fue seleccionado (silueta 0,347) frente a GMM ($k=9$, silueta 0,249) y HDBSCAN (0,210; excluido por 46\,\% de \textit{outliers}). La distribución de los segmentos refleja la asimetría del dataset: el segmento 3 agrupa al 39,1\,\% de los usuarios ($n=13.858$) con \textit{click rate} de 0,01 (una única apertura sin clic en seguros); en el extremo opuesto, los segmentos 1 y 2 concentran usuarios de alta actividad (\textit{click rates} 0,95 y 0,99) pero solo el 8,3\,\% de la base. Esta segmentación es la que emplea el recomendador (Capítulo~\ref{cap:recomendador}).

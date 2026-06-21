@@ -1,0 +1,42 @@
+# ⚠️ ARCHIVO DE REFERENCIA — NO lo cargan los notebooks.
+# Las semillas, rutas e hiperparámetros se fijan inline en cada notebook (ver CLAUDE.md).
+# Sirve como documentación de los valores por defecto previstos, no como fuente de verdad.
+
+project:
+  name: "TFM"
+  slug: "tfm"
+  author: "German"
+
+runtime:
+  python_version: "3.12"   # impuesto por .python-version y pyproject (requires-python >=3.12)
+  use_gpu: true
+  random_seed: 42
+
+paths:
+  data_raw: "data/raw"
+  data_processed: "data/processed"
+  data_external: "data/external"
+  data_external_clean: "data/external_clean"   # ficheros de enriquecimiento (INE, censo, vehículos)
+  notebooks: "notebooks"
+  models: "models"
+  reports_figures: "reports/figures"
+  artifacts: "artifacts"
+  src_package: "src/tfm"
+
+data:
+  target_column: "target"
+  id_column: "id"
+  test_size: 0.2
+
+training:
+  model_name: "baseline"
+  cv_folds: 5
+  # M2 (propensión) usa PR-AUC por desbalanceo; roc_auc se reporta como apoyo.
+  metric: "pr_auc"
+
+inference:
+  batch_size: 1024
+  output_path: "models/predictions.csv"
+
+tracking:
+  use_mlflow: false

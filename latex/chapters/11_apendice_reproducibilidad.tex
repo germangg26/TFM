@@ -1,0 +1,107 @@
+\chapter{Reproducibilidad}
+\label{ap:reproducibilidad}
+
+Este apéndice reúne la información necesaria para reproducir los resultados del trabajo: entorno de ejecución, versiones de las librerías, semillas aleatorias, orden de ejecución de los \textit{notebooks}, organización de los datos y esquema de validación. El objetivo es que un tercero pueda regenerar el \textit{pipeline} completo y obtener las mismas cifras. El código fuente completo (sin los datos de campaña, que son privados) está disponible en el repositorio \url{https://github.com/germangg26/TFM}.
+
+\section{Entorno y gestión de dependencias}
+
+El proyecto se desarrolla en \textbf{Python 3.12} (fijado en el fichero \texttt{.python-version}). La gestión de dependencias se realiza con \textbf{uv}, que registra las versiones exactas en \texttt{uv.lock}; la instalación completa del entorno se obtiene con \texttt{uv sync}. La Tabla~\ref{tab:versiones} recoge las versiones de las librerías principales empleadas.
+
+\begin{table}[htbp]
+\centering
+\caption{Versiones de las librerías principales.}
+\label{tab:versiones}
+\begin{tabular}{ll}
+\toprule
+\textbf{Librería} & \textbf{Versión} \\
+\midrule
+numpy                 & 2.4.4 \\
+pandas                & 3.0.3 \\
+scikit-learn          & 1.8.0 \\
+lightgbm              & 4.6.0 \\
+tensorflow            & 2.21.0 \\
+sentence-transformers & 5.5.1 \\
+prophet               & 1.3.0 \\
+scipy                 & 1.17.1 \\
+matplotlib            & 3.10.9 \\
+seaborn               & 0.13.2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Semillas aleatorias}
+
+Todos los procesos con componente aleatoria fijan la semilla \textbf{42} para garantizar la reproducibilidad: el muestreo de datos (\texttt{random\_state=42}), la inicialización de \textit{numpy} (\texttt{np.random.seed(42)}), las particiones de validación cruzada, el \textit{bootstrap} (\texttt{RandomState(42)}, 1000 repeticiones) y los modelos (\texttt{random\_state=42} en LightGBM, \textit{scikit-learn} y el autoencoder). En el autoencoder (M0) se activa además el determinismo de operaciones de TensorFlow (\texttt{TF\_ENABLE\_ONEDNN\_OPTS=0} y \textit{enable\_op\_determinism}) para que la incrustación sea idéntica entre ejecuciones.
+
+\section{Orden de ejecución de los \textit{notebooks}}
+
+El \textit{pipeline} se ejecuta en el orden indicado (Tabla~\ref{tab:pipeline}); cada \textit{notebook} consume los ficheros que generaron los anteriores (todos en \texttt{data/processed/}).
+
+\begin{table}[htbp]
+\centering
+\caption{Orden de ejecución y artefactos principales.}
+\label{tab:pipeline}
+\begin{tabular}{lll}
+\toprule
+\textbf{Notebook} & \textbf{Función} & \textbf{Salida principal} \\
+\midrule
+\texttt{01\_clean}             & Limpieza y muestreo 1:1     & \texttt{users/events/products.csv} \\
+\texttt{02\_geo}               & Enriquecimiento geográfico  & actualiza \texttt{users.csv} \\
+\texttt{03\_users}             & Enriquecimiento demográfico & \texttt{users.csv} final \\
+\texttt{04\_eda}               & Análisis exploratorio       & (figuras) \\
+\texttt{05\_demo\_segmentation} & M0: segmentación demográfica & \texttt{users\_demo\_segments.csv} \\
+\texttt{05b\_k\_stability}      & Diagnóstico de estabilidad de $k$ & (diagnóstico) \\
+\texttt{06\_segmentation}      & M1: segmentación conductual & \texttt{users\_segmented.csv} \\
+\texttt{07\_propensity}        & M2: modelo de propensión    & \texttt{propensity\_scores.csv} \\
+\texttt{08\_recommender}       & M3: recomendador por cluster & \texttt{recommendations.csv} \\
+\texttt{09\_forecast}          & M4: \textit{forecast} semanal & \texttt{forecast\_clicks.csv} \\
+\texttt{10\_inverse\_profile}  & Modelo inverso producto$\to$perfil & (perfiles) \\
+\texttt{11\_roi}               & Análisis de ROI             & (tablas de ROI) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Dependencias relevantes: \texttt{07\_propensity} usa el \textit{cluster} demográfico de \texttt{05}; \texttt{08\_recommender} usa el segmento conductual de \texttt{06}; \texttt{11\_roi} usa las probabilidades de \texttt{07}. El \textit{forecast} (\texttt{09}) es independiente de la tabla de usuarios.
+
+\section{Datos}
+
+Los datos brutos de campaña (\texttt{data/raw/}) no se versionan por su tamaño y carácter privado. De los $\approx 2$ millones de eventos originales (2.026.166) se toma una \textbf{muestra balanceada 1:1} (todos los clics más un número igual de no-clics), lo que da una prevalencia de entrenamiento de $\approx 0{,}238$; el prior real de producción ($\approx 2$\,\%) se restaura mediante la corrección de \textit{prior} (véase el Capítulo~\ref{cap:propension}). Las variables demográficas y laborales de detalle (situación laboral, estado civil, hogar, vehículo, etc.) son \textbf{sintéticas}: se generan por muestreo a partir de distribuciones oficiales (INE, censos municipales, DGT) ancladas al código postal del usuario, con las limitaciones que ello implica para la inferencia individual (véase el Capítulo~\ref{cap:datos}).
+
+\section{Fuentes de datos externas}
+
+Las variables demográficas y socioeconómicas se generaron muestreando a partir de distribuciones oficiales públicas, ancladas al código postal del usuario. A continuación se listan las fuentes empleadas, agrupadas por nivel geográfico, para garantizar la trazabilidad dato\,$\rightarrow$\,fuente (descargadas en enero de 2026).
+
+\paragraph{Nivel provincial y nacional (INE y DGT).}
+\begin{itemize}
+  \item Tasa de empleo y paro por provincia (INE): \url{https://www.ine.es/jaxiT3/Datos.htm?t=65349}
+  \item Población estudiante, miles de personas (INE): \url{https://www.ine.es/jaxiT3/Datos.htm?t=65356}
+  \item Número medio de personas por hogar, por provincia (INE): \url{https://www.ine.es/jaxiT3/Datos.htm?t=54562}
+  \item Hogares por tipo (provincia) y ocupantes por municipio (INE): \url{https://www.ine.es/dynt3/inebase/es/index.htm?padre=9810&capsel=9813}
+  \item Estado civil por provincia (INE): \url{https://www.ine.es/jaxiT3/Datos.htm?t=76288}
+  \item Nivel de estudios por provincia (INE): \url{https://www.ine.es/jaxiT3/Tabla.htm?t=66600&L=0}
+  \item Tipología de vivienda por provincia (INE): \url{https://www.ine.es/jaxi/Datos.htm?path=/t20/p274/serie/prov/p02/l0/&file=02010.px}
+  \item Consumo eléctrico por provincia (INE): \url{https://www.ine.es/jaxi/Datos.htm?tpx=59531}
+  \item Parque de vehículos, datos municipales 2024 (DGT): \url{https://www.dgt.es/menusecundario/dgt-en-cifras/dgt-en-cifras-resultados/dgt-en-cifras-detalle/Datos-municipales-informacion-general-2024/}
+  \item Contexto sobre municipios con alta ratio de vehículos por habitante (prensa, Antena 3): \url{https://www.antena3.com/noticias/economia/municipio-espana-mas-coches-habitante-104-persona_20250811689a483751d2460c807748cd.html}
+\end{itemize}
+
+\paragraph{Barcelona (resolución a nivel de distrito).}
+\begin{itemize}
+  \item Nivel de estudios por distrito (Ajuntament de Barcelona, \textit{open data}): \url{https://opendata-ajuntament.barcelona.cat/data/es/dataset/pad_mdbas_niv-educa-esta_sexe}
+  \item Consumo eléctrico por código postal y sector (datos.gob.es): \url{https://datos.gob.es/es/catalogo/l01080193-consumo-de-electricidad-mwh-por-codigo-postal-sector-economico-y-tramo-horario}
+  \item Tamaño del hogar (Portal de Dades, Ajuntament de Barcelona): \url{https://portaldades.ajuntament.barcelona.cat/es/estad%C3%ADsticas/5pcr60zdqe}
+  \item Parque de vehículos de la ciudad (datos.gob.es): \url{https://datos.gob.es/es/catalogo/l01080193-tipologia-del-parque-de-vehiculos-de-la-ciudad-de-barcelona}
+\end{itemize}
+Para Barcelona se mantuvieron las fuentes \emph{provinciales} de estado civil y tipología de vivienda (no se usaron fuentes locales propias para esas dos variables).
+
+\paragraph{Madrid (resolución a nivel de distrito).}
+\begin{itemize}
+  \item Nivel de estudios por distrito (datos.gob.es / Ayto.\ de Madrid): \url{https://datos.gob.es/es/catalogo/l01280796-panel-de-indicadores-de-distritos-y-barrios-de-madrid-estudio-sociodemografico} y \url{https://servpub.madrid.es/CSEBD_WBINTER/seleccionSerie.html?numSerie=0302010700012}
+  \item Vehículos por hogar: Anuario Estadístico de Madrid, ``Capítulo 7'' (PDF municipal; variable vehículos/hogar).
+  \item Consumo eléctrico de edificios (datos.madrid.es): \url{https://datos.madrid.es/dataset/300430-0-consumo-energia-edificios/resource/300430-0-consumo-energia-edificios-csv}
+  \item Superficie y ocupantes por hogar, Censo de Viviendas 2021 (Ayto.\ de Madrid): \url{https://www.madrid.es/portales/munimadrid/es/Inicio/El-Ayuntamiento/Estadistica/Areas-de-informacion-estadistica/Edificacion-y-vivienda/Censo-de-edificios-y-viviendas/Censo-de-Viviendas-2021/}
+\end{itemize}
+
+\section{Esquema de validación}
+
+Para evitar fugas de información se emplean tres esquemas según el caso: \textbf{GroupKFold agrupado por usuario} (5 \textit{folds}) en M2, de modo que ningún usuario aparezca a la vez en entrenamiento y validación; \textbf{validación cruzada temporal} (\textit{TimeSeriesSplit} de ventana creciente) en el modelo \textit{warm} y en el \textit{forecast}, respetando el orden cronológico; y \textbf{reconstrucción del segmento solo con \textit{train}} en la evaluación del recomendador (M3). La incertidumbre se cuantifica con \textbf{\textit{bootstrap}} (1000 repeticiones, semilla 42) e intervalos de confianza al 95\,\%, y las comparaciones múltiples se corrigen con el método de Holm.

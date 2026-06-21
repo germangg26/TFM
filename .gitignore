@@ -1,0 +1,90 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build metadata
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.Zone.Identifier
+
+# Local environment files
+.env
+.env.*
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Datos externos (oficiales: INE/censos/DGT): no versionar; descargar aparte (ver README)
+data/external_clean/*
+!data/external_clean/.gitkeep
+
+# Data folders: keep the directory markers only
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/external/*
+!data/external/.gitkeep
+
+# Documentos internos / de trabajo: no publicar
+CLAUDE.md
+DECISIONS.md
+reports/RESULTADOS_TFM.md
+
+# Generated models and reports
+models/*
+!models/.gitkeep
+
+# Artefactos de despliegue (regenerables con deployment/export_artifacts.py)
+deployment/api/artifacts/
+reports/figures/*
+!reports/figures/.gitkeep
+
+# LaTeX build artifacts
+latex/*.aux
+latex/*.bbl
+latex/*.bcf
+latex/*.blg
+latex/*.fdb_latexmk
+latex/*.fls
+latex/*.lof
+latex/*.log
+latex/*.lot
+latex/*.out
+latex/*.run.xml
+latex/*.synctex.gz
+latex/*.toc
+latex/_minted*/
+
+# Optional artifacts folder
+artifacts/*
+!artifacts/README.md
+artifacts/checkpoints/*
+!artifacts/checkpoints/.gitkeep
+artifacts/exports/*
+!artifacts/exports/.gitkeep

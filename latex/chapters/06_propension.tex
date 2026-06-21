@@ -1,0 +1,213 @@
+\chapter{Módulo M2 — Modelo de propensión}
+\label{cap:propension}
+
+Este capítulo desarrolla el modelo de propensión al clic: primero su método (definición, muestreo, arquitectura, algoritmo y validación) y después sus resultados (corrección de una fuga, aportación de las variables, comparación de algoritmos, calibración, modelo \textit{warm} y estudios de ablación). La métrica principal es PR-AUC, adecuada ante el fuerte desbalanceo de clases (prevalencia $\approx0{,}238$); su interpretación y la de los tests se detallan en el Capítulo~\ref{cap:evaluacion}.
+
+\section{Método}
+
+\subsection{Definición del problema y variable objetivo}
+
+El objetivo de M2 es estimar la propensión al clic de un par (usuario, producto): un \textit{score} con el que ordenar, para cada usuario, qué productos tienen más probabilidad de recibir un clic. La variable objetivo binaria es 1 si el evento registrado en \texttt{events.csv} es un clic y 0 si es una apertura. Más adelante se comparan dos formas de estimar ese \textit{score} (un modelo \emph{plano} y uno \emph{jerárquico} sector\,$\rightarrow$\,producto) y se justifica, con la evidencia empírica, por qué se adopta el plano.
+
+\subsection{Estrategia de muestreo y corrección de prior}
+
+El dataset de eventos presenta un click rate real de $\rho_\text{real} \approx 2\%$ en el dataset completo y de $\rho_\text{train} = 23{,}84\%$ en el sample procesado (resultado de la deduplicación y el muestreo balanceado descrito en el Capítulo~\ref{cap:datos}). Para permitir que el modelo aprenda la frontera de decisión con suficientes ejemplos positivos, se entrenó sobre el dataset balanceado. Las probabilidades predichas se corrigen a posteriori aplicando la transformación de la ecuación~\ref{eq:prior_correction} con $\rho_\text{real}=0{,}02$ y $\rho_\text{train}=0{,}2384$ (Sección~\ref{sec:validacion}).
+
+\subsection{Arquitectura del modelo}
+
+Las variables de \emph{producto} se incluyen porque el clic es una propiedad del \emph{par} (usuario, producto), no del usuario aislado: un único modelo alimentado solo con atributos de usuario devolvería el mismo valor para todos los productos de ese usuario y, por tanto, no podría ordenarlos. Para discriminar entre productos existen dos opciones: entrenar un modelo independiente por categoría (donde la identidad del producto queda implícita en \emph{qué} modelo se consulta) o emplear un único modelo que reciba el producto como variable de entrada. Esta segunda opción, además de no fragmentar los datos en muchos modelos pequeños, puede aprovechar los atributos del producto (en particular el texto del asunto) y generalizar a productos sin historial. Por eso se comparan la \textbf{Variante A} (un modelo por categoría con \emph{solo} variables de usuario, el enfoque demográfico tradicional) y la \textbf{Variante B} (un único modelo que añade variables de producto); la comparación de la Sección~\ref{sec:m2-variables} confirma que añadir variables de producto aporta de forma significativa.
+
+Sobre esa base se evalúan además dos arquitecturas. La primera es un \textbf{modelo plano}: un único modelo estima directamente $P(\text{click}\mid u,\text{producto})$ y su salida se usa como \textit{score} para rankear los productos de cada usuario. La segunda es un \textbf{modelo jerárquico} en dos niveles inspirado en la decisión de compra: un Nivel 1 estima la propensión de sector $P(\text{click}\mid u,\text{sector})$, un Nivel 2 la condicional de producto $P(\text{click}\mid u,\text{sector},\text{producto})$ y el \textit{score} final es el producto de ambos, $p_\text{sector}\cdot p_\text{producto}$. La comparación de ambas arquitecturas (Sección~\ref{sec:m2-algos}) muestra que el modelo plano supera al jerárquico en \emph{todos} los algoritmos: la PR-AUC cae entre 0,014 y 0,028 al pasar a la variante jerárquica, y la multiplicación de las dos probabilidades, además de no aportar señal, descalibra las predicciones (el \textit{Brier} empeora de $\approx0{,}17$ a $\approx0{,}21$). La razón es que encadenar dos estimaciones imperfectas acumula su error en lugar de cancelarlo, y un único modelo plano ya puede usar el sector como una variable más sin pagar ese coste. Por eso se adopta el modelo plano. La estructura jerárquica se conserva como variante interpretable (descompone la decisión en sector y producto), pero no se adopta como modelo final.
+
+\subsection{Algoritmo y características}
+
+El algoritmo seleccionado es \textbf{LightGBM} \cite{ke2017lightgbm}, elegido tras comparar también una red neuronal (perceptrón multicapa), HistGradientBoosting, Random Forest y regresión logística sobre las mismas particiones; la comparación detallada (Sección~\ref{sec:m2-algos}) muestra diferencias pequeñas entre los métodos basados en árboles (con LightGBM y Random Forest a la cabeza y la red neuronal en último lugar), lo que confirma que el techo de rendimiento lo marcan los datos, no el algoritmo. Los hiperparámetros se recogen en la Tabla~\ref{tab:lgbm_params}; \texttt{num\_leaves} se redujo a 15 porque, con señal débil, un modelo más regularizado generaliza mejor.
+
+\begin{table}[htbp]
+\centering
+\caption{Hiperparámetros del modelo LightGBM (M2)}
+\label{tab:lgbm_params}
+\begin{tabular}{ll}
+\toprule
+\textbf{Parámetro} & \textbf{Valor} \\
+\midrule
+\texttt{num\_leaves}          & 15   \\
+\texttt{learning\_rate}       & 0,05 \\
+\texttt{n\_estimators}        & 300  \\
+\texttt{min\_child\_samples}  & 20   \\
+\texttt{subsample}            & 0,8  \\
+\texttt{colsample\_bytree}    & 0,8  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las características de entrada combinan dos grupos. Las \textbf{variables de usuario} (11): edad \emph{categorizada} en grupos (\texttt{age\_cat}), género, situación laboral, estado civil, tenencia de vehículo, tamaño del hogar, número de habitaciones, IPA ordinal, tipo de municipio, distancia ordinal y segmento demográfico (M0). Las \textbf{variables de producto} (Variante B): categoría, sector, CPL, atributos de marketing (urgencia, sensibilidad al precio, riesgo percibido\ldots) agregados a nivel de sector (el cruce por marca solo cubría el 26,7\,\% de eventos) y los \textit{embeddings} del texto del asunto. Estos últimos se obtienen codificando \texttt{subject\_clean} con un modelo multilingüe de \textit{sentence-transformers} (384 dimensiones) y reduciéndolo a 16 mediante PCA; capturan \emph{qué dice} el email, que es lo que motiva el clic. Para evitar fuga, ese PCA se ajusta dentro de cada \textit{fold} de la validación cruzada (solo con los productos de \textit{train}), no globalmente. Por el mismo motivo no se imputan los pocos valores numéricos ausentes: LightGBM gestiona los \texttt{NaN} de forma nativa.
+
+\subsection{Validación}
+
+La evaluación se realiza con \textbf{validación cruzada agrupada por usuario} (\texttt{Stratified\-Group\-KFold}, $k=5$; Sección~\ref{sec:validacion}). Es un punto crítico: como todas las variables de usuario son idénticas en todos sus eventos, una validación por evento dejaría al mismo usuario en entrenamiento y validación, permitiendo memorizar e inflando la métrica. Agrupar por \texttt{id\_user} mide la generalización a usuarios \emph{no vistos}, que es el escenario real de arranque en frío. La métrica principal es \mbox{PR-AUC}, con \mbox{AUC-ROC} como apoyo. Las comparaciones se contrastan con intervalos de confianza \textit{bootstrap} al 95\,\%, diferencias pareadas, el test de Wilcoxon por fold y la corrección de Holm.
+
+\section{Resultados}
+
+\subsection{Corrección de una fuga de datos en la validación}
+
+La validación inicial empleaba \texttt{StratifiedKFold} \emph{por evento}, lo que reintroducía la fuga descrita en la Sección~\ref{sec:validacion}: un mismo usuario aparecía a la vez en entrenamiento y validación con un vector de \textit{features} idéntico, produciendo una métrica optimista. Al sustituirla por \texttt{StratifiedGroupKFold} \emph{agrupando por} \texttt{id\_user}, el AUC-ROC cae de 0,695 a 0,563 (Figura~\ref{fig:m2_leakage}). El valor de 0,695 era, por tanto, fruto de la fuga; el 0,563 es la estimación realista del poder predictivo de las variables demográficas por sí solas.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\textwidth]{fig_m2_leakage}
+\caption{Efecto de corregir la fuga de datos en M2. La validación por evento (con fuga) inflaba el AUC-ROC; la validación agrupada por usuario da la estimación sin fuga.}
+\label{fig:m2_leakage}
+\end{figure}
+
+\begin{hallazgo}
+El AUC-ROC honesto del modelo demográfico es \textbf{0,56}, no 0,70. El valor inflado era fruto de una
+\emph{fuga de datos} (validar por evento en lugar de por usuario). Detectarlo y corregirlo ilustra cómo una
+elección de validación inadecuada infla las métricas en problemas con \textit{features} estables por usuario.
+\end{hallazgo}
+
+\subsection{Aportación de las variables de producto}
+\label{sec:m2-variables}
+
+Se compara primero qué \emph{variables} aportan: la Variante A es un modelo por categoría con solo variables de usuario (el enfoque demográfico tradicional) y la Variante B añade variables de producto (categoría, CPL, atributos de marketing agregados por sector y \textit{embeddings} del texto del asunto del email). La Tabla~\ref{tab:m2_models} y la Figura~\ref{fig:m2_models} resumen los resultados (PR-AUC con intervalo de confianza \textit{bootstrap} al 95\,\%, validación GroupKFold por usuario).
+
+\begin{table}[htbp]
+\centering
+\caption{M2: aportación de las variables de producto (PR-AUC con IC 95\%, GroupKFold por usuario)}
+\label{tab:m2_models}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Estrategia} & \textbf{PR-AUC} & \textbf{IC 95\%} & \textbf{AUC-ROC} \\
+\midrule
+Baseline popularidad                            & 0,313 & [0,309--0,319] & 0,614 \\
+Solo variables de usuario                       & 0,322 & [0,316--0,328] & 0,612 \\
+\textbf{Modelo con producto (plano, adoptado)}  & \textbf{0,402} & [0,395--0,410] & \textbf{0,684} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{fig_m2_models}
+\caption{PR-AUC de las distintas estrategias de M2 con intervalo de confianza al 95\%. La línea discontinua marca el azar (prevalencia 0,238).}
+\label{fig:m2_models}
+\end{figure}
+
+El modelo con variables de producto alcanza un PR-AUC de 0,402, muy por encima del modelo de solo-usuario ($\approx+0{,}08$) y del baseline de popularidad ($\approx+0{,}09$), ambas diferencias con $p\approx0$ (test \textit{bootstrap} pareado). El modelo de solo-usuario es estadísticamente indistinguible del baseline de popularidad: el esquema que solo usa variables de usuario apenas personaliza. Los \textit{embeddings} del texto del asunto son una pieza central de esa señal de producto.
+
+\subsection{Comparación de algoritmos y arquitectura}
+\label{sec:m2-algos}
+
+Fijadas las variables, se comparan cinco algoritmos (una red neuronal de perceptrón multicapa, LightGBM, HistGradientBoosting, Random Forest y regresión logística) bajo las dos arquitecturas: el modelo \emph{plano} (un único modelo estima $P(\text{click}\mid u,\text{producto})$) y el \emph{jerárquico} ($p_\text{sector}\cdot p_\text{producto}$), todos sobre las mismas particiones GroupKFold por usuario. La Tabla~\ref{tab:m2_algos} recoge el panel de métricas del modelo plano y la Figura~\ref{fig:m2_algos} contrasta ambas arquitecturas.
+
+\begin{table}[htbp]
+\centering
+\caption{M2: comparación de algoritmos (modelo plano; GroupKFold por usuario; umbral de F1/MCC = prevalencia 0,238). \textit{Brier}: menor es mejor.}
+\label{tab:m2_algos}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Algoritmo} & \textbf{PR-AUC} & \textbf{AUC-ROC} & \textbf{Brier} & \textbf{F1} & \textbf{MCC} \\
+\midrule
+Random Forest                  & 0,409 & 0,688 & 0,166 & 0,454 & 0,237 \\
+\textbf{LightGBM} (adoptado)   & 0,402 & 0,684 & 0,167 & 0,447 & 0,231 \\
+HistGradientBoosting           & 0,397 & 0,678 & 0,168 & 0,444 & 0,230 \\
+Regresión logística            & 0,391 & 0,673 & 0,169 & 0,441 & 0,216 \\
+Red neuronal (MLP)             & 0,378 & 0,661 & 0,174 & 0,432 & 0,207 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.78\textwidth]{fig_m2_algos}
+\caption{PR-AUC de cada algoritmo en las dos arquitecturas (plano frente a jerárquico). El plano supera al jerárquico en todos los algoritmos; la red neuronal queda última en ambos.}
+\label{fig:m2_algos}
+\end{figure}
+
+Se extraen tres conclusiones. Primera, la arquitectura plana supera a la jerárquica en los cinco algoritmos ($\Delta$PR-AUC entre $-0{,}014$ y $-0{,}028$): multiplicar por la probabilidad de sector añade error y descalibra las probabilidades (el \textit{Brier} empeora de $\approx0{,}17$ a $\approx0{,}21$); por eso se adopta el modelo plano. Segunda, la red neuronal queda última en ambas arquitecturas, un resultado consistente con la evidencia reciente de que, en datos tabulares, los métodos basados en árboles superan al aprendizaje profundo~\cite{grinsztajn2022}; aquí, con clases desbalanceadas y señal débil, un modelo más complejo no está justificado. Tercera, las diferencias entre los métodos de árboles son pequeñas (Random Forest y LightGBM quedan empatados dentro del intervalo de confianza); se mantiene LightGBM por su manejo nativo de variables categóricas y valores ausentes y por ser el estándar del sector. Ningún algoritmo se despega del entorno de PR-AUC $0{,}40$: el techo lo marcan los datos, no el algoritmo.
+
+Para descartar que la comparación penalizase a algún algoritmo por usar su configuración por defecto (en particular a la red neuronal), se ajustaron los hiperparámetros de cada modelo mediante una búsqueda en rejilla acotada sobre las \emph{mismas} particiones GroupKFold y el modelo plano. Tras el ajuste, el orden se mantiene: Random Forest $0{,}411$ y LightGBM $0{,}409$ siguen empatados a la cabeza, HistGradientBoosting $0{,}406$, y la red neuronal $0{,}395$, pese a mejorar respecto a su configuración por defecto, continúa por debajo de los árboles, seguida de la regresión logística $0{,}392$. El ajuste, por tanto, no altera ninguna de las tres conclusiones ni el modelo adoptado: la ventaja de los árboles sobre la red neuronal es estructural y no un efecto de la parametrización.
+
+\subsection{Interpretabilidad}
+
+La Figura~\ref{fig:m2_importance} muestra la importancia de las variables del modelo adoptado (con variables de producto). Las más relevantes son \texttt{ipa\_class} (poder adquisitivo), \texttt{age\_cat} (edad categorizada) y \texttt{demo\_cluster} (cluster demográfico de M0), que ocupa la tercera posición: el cluster funciona como un resumen compacto del perfil demográfico. Ahora bien, la importancia por número de \textit{splits} refleja cuánto \emph{usa} el modelo una variable, no su valor predictivo real: el estudio de ablación (Tabla~\ref{tab:m2_ablation}) muestra que prescindir del cluster (y del resto de variables de usuario) no reduce el PR-AUC, de modo que su papel es operativo (resolver el arranque en frío) más que predictivo.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.72\textwidth]{fig_m2_importance}
+\caption{Importancia de variables del modelo de propensión M2 (modelo con variables de producto). El cluster demográfico de M0 (\texttt{demo\_cluster}) es la tercera variable más utilizada.}
+\label{fig:m2_importance}
+\end{figure}
+
+\subsection{Corrección de prior y sensibilidad}
+
+Las predicciones se calibran al prior real de producción ($\rho_\text{real}=0{,}02$) aplicando la transformación de Dal Pozzolo et al.~\cite{dalpozzolo2015} en escala de \textit{log-odds}, cuyas propiedades (monotonía e invariancia del ranking) se justifican en el Capítulo~\ref{cap:evaluacion}. Tras la corrección, las probabilidades pasan de una media de 0,227 (escala de entrenamiento balanceado) a 0,022, directamente interpretables como estimaciones del comportamiento real (coherentes con el $\approx 2$\,\% de tasa de clic real).
+
+\paragraph{Sensibilidad al prior real.} El valor $\rho_\text{real}=0{,}02$ es una estimación; la tasa de clic real podría situarse en torno al 1\,\% o al 3\,\%. Para comprobar la robustez de las conclusiones se repitió la corrección con esos tres priores (Tabla~\ref{tab:m2_prior}). Por la monotonía de la transformación, el poder de ordenación es invariante: AUC-ROC ($0{,}684$) y PR-AUC ($0{,}402$) no cambian en ninguno de los tres escenarios. Lo único que se desplaza es el nivel absoluto de las probabilidades, cuya media sigue al prior asumido ($1{,}1$\,\% / $2{,}2$\,\% / $3{,}2$\,\%). En otras palabras, la incertidumbre sobre el prior afecta a la \emph{escala} de las probabilidades pero no a la \emph{calidad} del modelo ni al ranking de usuarios, que es lo que se explota en la priorización de envíos. El análisis de ROI a escala de producción (Capítulo~\ref{cap:negocio}) sí emplea estas probabilidades corregidas.
+
+\begin{table}[htbp]
+\centering
+\caption{M2: sensibilidad de la calibración al prior real de producción ($\rho_\text{real}$). El poder de ordenación (AUC-ROC, PR-AUC) es invariante por ser la corrección monótona; solo cambia el nivel medio de las probabilidades.}
+\label{tab:m2_prior}
+\begin{tabular}{cccc}
+\toprule
+\textbf{$\rho_\text{real}$} & \textbf{Media prob. corregida} & \textbf{AUC-ROC} & \textbf{PR-AUC} \\
+\midrule
+1\,\%          & 0,011 & 0,684 & 0,402 \\
+2\,\% (adoptado) & 0,022 & 0,684 & 0,402 \\
+3\,\%          & 0,032 & 0,684 & 0,402 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Calibración.} Además del orden, interesa que las probabilidades sean realistas. El \textit{Brier score} (menor es mejor) del modelo plano en la escala de entrenamiento es 0,167, y la curva de fiabilidad no presenta desviaciones sistemáticas grandes respecto a la diagonal, lo que indica una calibración razonable. Tras la corrección de \textit{prior}, las probabilidades quedan en la escala de producción ($\approx2\%$), por lo que su \textit{Brier} ya no es comparable con el de la escala balanceada.
+
+\subsection{Modelo \textit{warm} para usuarios con historial}
+
+El M2 descrito es \emph{cold}: usa solo demografía y es válido para cualquier usuario, también nuevos. Para usuarios \emph{con historial} se evaluó un modelo \emph{warm} que añade variables de \textbf{comportamiento} (nº de eventos, clics, \textit{click-rate}, sectores y recencia), calculadas \emph{solo con datos de entrenamiento} para evitar fuga temporal. Para que la comparación no dependa de un único corte temporal arbitrario, se evalúa con validación cruzada temporal (\textit{TimeSeriesSplit} de ventana creciente, 5 cortes sucesivos pasado$\to$futuro), midiendo \emph{cold} y \emph{warm} sobre los eventos de test de usuarios con historial en cada corte. El \emph{warm} mejora sustancialmente al \emph{cold} de forma consistente en los cinco cortes: PR-AUC $0{,}827\pm0{,}031 \to 0{,}943\pm0{,}012$ y AUC-ROC $0{,}810\pm0{,}033 \to 0{,}941\pm0{,}018$ (media\,$\pm$\,desviación típica entre folds), con una mejora media $\Delta$PR-AUC $=+0{,}116\pm0{,}031$ y signo positivo en 5 de 5 cortes. La estabilidad entre folds (desviación pequeña) refuerza que la ganancia es real y no un artefacto de un corte concreto. Esta ganancia aplica solo a la minoría de usuarios con historial; para usuarios nuevos se mantiene el modelo \emph{cold}. Estos valores absolutos no son comparables con el PR-AUC global de M2 (0,402): se miden sobre una subpoblación intrínsecamente más fácil (usuarios recurrentes, con \textit{click-rate} en torno a 0,5 frente a 0,238 global), por lo que lo informativo es la \emph{mejora relativa} del \emph{warm} sobre el \emph{cold} ($\Delta\approx+0{,}12$), no las cifras en sí. En el despliegue, un \textit{endpoint} \texttt{/propensity} selecciona automáticamente \emph{warm} o \emph{cold} según el usuario tenga o no historial.
+
+\subsection{Ablación: ¿qué grupo de variables aporta?}
+
+Para cuantificar el aporte real de cada grupo de variables se realizó un \textbf{estudio de ablación}: se reentrena el modelo (en su forma plana, con predicción \textit{out-of-fold} y validación GroupKFold por usuario) eliminando grupos de variables y midiendo el cambio en PR-AUC con intervalo de confianza \textit{bootstrap}. La Tabla~\ref{tab:m2_ablation} recoge los resultados. Se distinguen las variables \emph{sintéticas muestreadas al azar} (situación laboral, estado civil, vehículo, hogar, habitaciones), la \emph{señal real de usuario} (edad real y variables geográficas derivadas del código postal) y las variables de \emph{producto}.
+
+\begin{table}[htbp]
+\centering
+\caption{Ablación de M2: PR-AUC por grupo de variables (modelo plano, OOF GroupKFold; azar~=~0,238; n.s.~=~diferencia no significativa)}
+\label{tab:m2_ablation}
+\begin{tabular}{lrcl}
+\toprule
+\textbf{Configuración} & \textbf{Nº var.} & \textbf{PR-AUC [IC 95\%]} & \textbf{$\Delta$ vs.\ completo} \\
+\midrule
+Completo (usuario+producto)      & 39 & 0,402 [0,395--0,410] & --- \\
+Sin sintéticas aleatorias        & 34 & 0,402 [0,395--0,410] & $-0{,}001$ (n.s.) \\
+\textbf{Solo señal real + producto} & 32 & \textbf{0,407} [0,399--0,415] & $+0{,}004$ (n.s., $p=0{,}06$) \\
+Solo producto                    & 28 & 0,398 [0,390--0,406] & $-0{,}005$ (n.s., $p=0{,}07$) \\
+Solo usuario (todas)             & 11 & 0,278 [0,273--0,283] & $-0{,}125$ ($p<0{,}001$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los resultados son claros: (i) eliminar las cinco variables sintéticas muestreadas al azar no cambia la métrica (diferencia no significativa, $p=0{,}68$): no aportan señal; (ii) el mejor modelo numérico conserva \emph{solo} la señal real de usuario (edad y geografía) más el producto, aunque su ventaja sobre el modelo completo tampoco es significativa ($p=0{,}06$); (iii) un modelo con solo variables de producto iguala al modelo completo (diferencia no significativa, $p=0{,}07$), mientras que uno con solo variables de usuario apenas supera el azar (PR-AUC 0,278 vs.\ 0,238; AUC-ROC 0,56). Las variables demográficas sintéticas no aportan poder predictivo: toda la señal reside en el contenido del producto (sector, categoría y texto del asunto). Es la confirmación cuantitativa de la limitación anticipada en el Capítulo~\ref{cap:datos}.
+
+\subsection{¿Bate el modelo a la tasa de clic por categoría?}
+
+Si toda la señal está en el producto, el \textit{baseline} verdaderamente exigente no es la popularidad, sino asignar a cada par la tasa de clic histórica de la categoría del producto (una tabla de frecuencias). Se evalúa \textit{out-of-fold} (la tasa se estima solo con el \textit{train} de cada \textit{fold}, GroupKFold por usuario) y se compara con el modelo plano (Tabla~\ref{tab:m2_ctr}). El modelo supera de forma significativa a esa tabla de frecuencias: PR-AUC 0,402 frente a 0,316 ($\Delta=+0{,}086$, IC 95\% $[+0{,}078,+0{,}094]$, $p\approx0$). La mejora no es residual: confirma que el modelo no se limita a memorizar la propensión media de cada categoría, sino que explota el texto concreto del asunto (vía \textit{embeddings}) para discriminar entre productos de una misma categoría. Es la evidencia que respalda \textbf{H1}. El asunto del email es una variable \emph{legítima} y disponible en el momento de decidir el envío, por lo que usarlo no constituye fuga; y que la ventaja provenga de la semántica del texto o de una codificación más fina de la propia categoría no altera la conclusión operativa: incorporar el asunto mejora el \textit{ranking} de envíos respecto a trabajar solo con la categoría agregada.
+
+\begin{table}[htbp]
+\centering
+\caption{M2: el modelo plano frente al baseline de tasa de clic por categoría (OOF GroupKFold; azar~=~0,238)}
+\label{tab:m2_ctr}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Método} & \textbf{PR-AUC} & \textbf{AUC-ROC} \\
+\midrule
+Baseline: tasa de clic por sector     & 0,297 & 0,589 \\
+Baseline: tasa de clic por categoría  & 0,316 & 0,612 \\
+\textbf{Modelo plano (usuario+producto+\textit{embeddings})} & \textbf{0,402} & \textbf{0,684} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Modelo inverso: producto \texorpdfstring{$\rightarrow$}{->} perfil}
+
+Se construyó un modelo inverso que, dado un producto, identifica los perfiles de usuario con mayor probabilidad de clic. Metodológicamente se interroga el modelo \emph{forward} de M2 fijando el producto y enumerando todas las combinaciones de un subconjunto de variables (edad, sexo, renta, vehículo, tipo de municipio; 720 combinaciones), de las que se derivan las probabilidades marginales por variable. El efecto del perfil resulta débil: la probabilidad de clic marginal por grupo de edad varía solo entre 0,06 y 0,14 según el producto, lo que indica que es el producto, y no el perfil demográfico, quien determina mayoritariamente la propensión. El método es válido, pero su capacidad informativa está limitada por el carácter sintético de las variables de usuario.

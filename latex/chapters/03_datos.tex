@@ -1,0 +1,222 @@
+\chapter{Datos}
+\label{cap:datos}
+
+\section{Fuentes de datos}
+
+El dataset principal de este trabajo procede de campañas reales de email marketing en el mercado español, proporcionadas en formato CSV con separador de punto y coma. Los registros llegaron en dos ficheros, identificados con sendos códigos anonimizados (LOW y CPC) que corresponden a las dos personas que recopilaron los datos; no son, por tanto, tipos de campaña distintos. Para el análisis ambos ficheros se unifican en un único conjunto, ya que comparten estructura y recogen el mismo tipo de interacción usuario--correo.
+
+Cada registro recoge un evento de interacción entre un usuario y un correo electrónico de campaña. La información disponible por registro abarca datos del usuario (correo electrónico, fecha de nacimiento, sexo y código postal), datos del producto anunciado (sector, nombre de producto, marca y empresa proveedora) y el tipo de evento registrado, que puede ser \textit{click}, \textit{open} o \textit{ignored}. El campo \texttt{cpl} recoge el coste por lead (CPL) del producto anunciado y solo viene informado en una de las dos fuentes (la identificada como CPC).
+
+\section{Preprocesado y limpieza}
+
+\subsection{Selección y normalización de columnas}
+
+De entre los campos disponibles en el dataset original se seleccionaron doce variables relevantes para el análisis. Las columnas fueron renombradas para mayor claridad y consistencia: \texttt{fecha\_de\_nacimiento} pasó a denominarse \texttt{birthday}, \texttt{codigo\_postal} como \texttt{cp\_num}, \texttt{event\_timestamp} como \texttt{timestamp}, y de forma análoga el resto de campos descriptivos del producto y del usuario.
+
+Los campos de texto (\texttt{email}, \texttt{subject} y \texttt{cp\_num}) se normalizaron eliminando espacios y convirtiendo a minúsculas. Las variables categóricas se almacenaron con tipo \texttt{string} para evitar conversiones implícitas durante el procesado.
+
+\subsection{Filtrado y anonimización}
+
+Los registros con correo electrónico o código postal ausente fueron descartados, así como aquellos con edad fuera del rango 18--120 años. Para garantizar la privacidad de los usuarios, los identificadores se generaron mediante función hash SHA-256: el campo \texttt{id\_user} a partir del correo electrónico limpio, y el campo \texttt{id\_product} a partir del asunto del correo. De este modo se mantiene la integridad referencial entre tablas sin almacenar información personal identificable.
+
+\subsection{Deduplicación de eventos}
+
+Un mismo usuario puede haber interactuado con el mismo correo en múltiples ocasiones. Para evitar duplicidades, se aplicó una deduplicación sobre los pares (\texttt{email}, \texttt{subject}) conservando el evento de mayor prioridad según la jerarquía \textit{click} $>$ \textit{open} $>$ \textit{ignored}. Este criterio refleja la relevancia informativa de cada tipo de evento: un clic implica intención activa y tiene mayor valor predictivo que una simple apertura.
+
+\subsection{Normalización de categorías de producto}
+
+Los valores originales del campo \texttt{product} presentaban alta variabilidad textual, con múltiples denominaciones para un mismo tipo de producto. Se implementó una función de normalización basada en puntuación de palabras clave aplicada sobre la concatenación de \texttt{subject}, \texttt{product}, \texttt{sector} y \texttt{brand}, que mapea cada registro a una de 25 categorías estandarizadas (incluida \texttt{other}). Entre las categorías resultantes se encuentran \texttt{car\_insurance}, \texttt{health\_insurance}, \texttt{energy\_plan}, \texttt{mobile\_plan} o \texttt{funeral\_insurance}, entre otras. Tras la normalización, el catálogo quedó reducido a 70 productos únicos.
+
+\section{Estructura dimensional del dataset}
+
+El resultado del proceso de limpieza son tres tablas relacionales que constituyen el modelo dimensional del proyecto.
+
+La tabla \textbf{users\_base} recoge un registro por usuario único, con sus atributos de identificación y datos demográficos básicos. La tabla \textbf{products} recoge un registro por asunto de campaña único, con los atributos descriptivos del producto anunciado y su categoría normalizada. La tabla \textbf{events} recoge cada evento de interacción, vinculando usuarios y productos mediante sus respectivos identificadores y registrando el tipo de evento y el instante temporal en que ocurrió. Tras el proceso de limpieza, la tabla de eventos contiene 50.087 registros correspondientes a 37.815 usuarios únicos y 70 productos, con una proporción de 11.940 clics (23,8\%) frente a 38.147 aperturas (76,2\%). Esta proporción es el resultado de un muestreo balanceado sobre los datos brutos, cuya justificación se detalla en la Sección~\ref{sec:eda} (``Comparativa del remuestreo'').
+
+\section{Enriquecimiento externo}
+
+El dataset de campaña únicamente recoge información de correo electrónico, fecha de nacimiento, sexo y código postal. Con el objetivo de dotar a cada usuario de un perfil demográfico y socioeconómico más completo, se realizó un proceso de enriquecimiento externo a partir de fuentes de datos públicas españolas, principalmente del Instituto Nacional de Estadística (INE) y de registros administrativos municipales.
+
+\subsection{Resolución geográfica}
+
+El primer paso del enriquecimiento consistió en traducir el código postal de cada usuario a su municipio de residencia. Para ello se utilizó un fichero de correspondencias que cubre los 11.692 códigos postales vigentes en España. Para los distritos de Madrid y Barcelona se emplearon diccionarios específicos que permiten una resolución a nivel de distrito, logrando mayor granularidad geográfica en las dos ciudades con mayor concentración de usuarios. Del total de 37.815 usuarios, el 93,6\% (35.405) se vinculó con éxito a un municipio concreto; el 6,4\% restante (2.410 usuarios), sin correspondencia código postal\,$\rightarrow$\,municipio, se descartó del dataset enriquecido. Estos 35.405 usuarios con perfil geográfico completo constituyen la población sobre la que operan los módulos posteriores.
+
+\subsection{Variables demográficas estimadas}
+
+Las variables demográficas adicionales se generaron mediante muestreo probabilístico a partir de distribuciones estadísticas municipales y provinciales del INE, de modo que cada usuario recibe valores coherentes con las características demográficas de su área de residencia. Este enfoque permite disponer de perfiles completos sin necesidad de datos individuales observados, asumiendo que los usuarios son representativos de la población de su municipio o provincia.
+
+La situación laboral se estimó en dos pasos: primero se determinó si el usuario pertenece a la población activa a partir de la tasa de actividad municipal; para los activos, se aplicó la tasa de paro para distinguir entre empleados y desempleados. El resultado fue un 53,3\% de usuarios empleados, un 41,0\% inactivos y un 5,7\% desempleados. De forma análoga, se estimaron el estado civil, el tipo de hogar, el número de habitaciones de la vivienda y la probabilidad de tenencia de vehículo a partir de las distribuciones provinciales o municipales correspondientes.
+
+\textbf{Limitación fundamental.} Es importante subrayar que estas variables son \emph{imputaciones ecológicas}: no son atributos observados de cada individuo, sino valores muestreados de las distribuciones agregadas de su área de residencia. En consecuencia, comparten sobre todo la señal \emph{geográfica} del usuario y no reflejan su variabilidad individual real. Atribuir a un usuario concreto las propiedades estadísticas de su zona constituye un caso de \emph{falacia ecológica}~\cite{robinson1950, greenland2001}, por lo que el poder predictivo \emph{individual} de estas variables es, por construcción, limitado. Esta limitación condiciona la interpretación de los resultados de propensión (Capítulo~\ref{cap:propension}) y se retoma en las conclusiones.
+
+La Tabla~\ref{tab:variables_enriquecidas} resume las variables añadidas, su fuente y el método de asignación empleado.
+
+\begin{table}[htbp]
+\centering
+\caption{Variables añadidas mediante enriquecimiento externo}
+\label{tab:variables_enriquecidas}
+\begin{tabular}{lll}
+\toprule
+\textbf{Variable} & \textbf{Fuente} & \textbf{Método} \\
+\midrule
+\texttt{labor\_status}   & INE, tasas actividad/paro 2025T4   & Bernoulli por municipio \\
+\texttt{labor\_type}     & INE, sectores municipales          & Multinomial por municipio \\
+\texttt{civil\_status}   & INE, estado civil provincial       & Multinomial por provincia \\
+\texttt{tiene\_coche}    & Parque municipal de vehículos      & Bernoulli por municipio \\
+\texttt{size\_hogar}     & INE, censo de viviendas            & Multinomial por municipio \\
+\texttt{num\_room}       & INE, habitaciones por vivienda     & Multinomial por provincia \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Dataset final}
+
+El dataset resultante tras el preprocesado y el enriquecimiento externo queda compuesto por 35.405 usuarios con perfil demográfico completo de 16 variables, 70 productos categorizados en 25 familias y 50.087 eventos de interacción distribuidos a lo largo de aproximadamente doce meses (52 semanas). La matriz de interacciones usuario-producto es muy esparsa (Sección~\ref{sec:eda}, ``Esparsidad y actividad por usuario''), lo que descarta los métodos de filtrado colaborativo clásico en favor de aproximaciones basadas en características del usuario y del contenido del producto, tal como se detalla en el capítulo~\ref{cap:recomendador}.
+
+\section{Análisis exploratorio de datos}
+\label{sec:eda}
+
+Antes del modelado se realizó un análisis exploratorio para caracterizar la variable objetivo, los perfiles de usuario, el comportamiento por sector y la estructura de las interacciones. Sus conclusiones condicionan las decisiones metodológicas posteriores.
+
+\subsection{Variable objetivo}
+
+La variable a predecir es binaria: \textit{clic} (interacción activa) frente a \textit{apertura} (sin clic). De los 50.087 eventos, 11.940 son clics (23,8\,\%) y 38.147 aperturas (76,2\,\%) (Figura~\ref{fig:eda_target}). Esta proporción corresponde al \emph{sample balanceado} usado para entrenar, no al \textit{click rate} real del dataset completo (véase la subsección siguiente, ``Comparativa del remuestreo''). Aun así, el problema sigue siendo desbalanceado, lo que justifica el uso de PR-AUC como métrica principal.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.55\textwidth]{fig_eda_target}
+\caption{Distribución de la variable objetivo en el dataset de entrenamiento: clics frente a aperturas.}
+\label{fig:eda_target}
+\end{figure}
+
+\subsection{Comparativa del remuestreo}
+
+El dataset \emph{bruto} presenta un desbalanceo extremo: de los 2.026.166 eventos originales, solo el 2,2\,\% son clics (1 clic por cada $\approx$44 no-clics). Para que el modelo de propensión disponga de suficientes ejemplos positivos se aplica un \textbf{muestreo balanceado 1:1} (todos los clics más un número igual de no-clics) que, tras la deduplicación y los filtros, deja el conjunto de entrenamiento en 50.087 eventos con un 23,8\,\% de clics (Figura~\ref{fig:eda_resampling}). El sesgo así introducido se corrige a posteriori con la transformación de \textit{prior} (Capítulo~\ref{cap:propension}), que devuelve las probabilidades a la escala real de producción.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_eda_resampling}
+\caption{Variable respuesta \textbf{antes} (datos brutos, escala logarítmica) y \textbf{después} del muestreo balanceado y la limpieza. El remuestreo eleva la prevalencia de clic del 2,2\,\% al 23,8\,\%, dotando al modelo de suficientes ejemplos positivos.}
+\label{fig:eda_resampling}
+\end{figure}
+
+\paragraph{Efecto sobre las variables observadas.} El muestreo balanceado
+cambia la prevalencia de la respuesta sin distorsionar la composición de la muestra. La
+Tabla~\ref{tab:antes_despues} y la Figura~\ref{fig:eda_antes_despues} comparan, antes y después, las
+variables \emph{observadas} (no las demográficas sintéticas, que se añaden más tarde). La estructura se
+preserva: la \textbf{edad} es prácticamente idéntica (media 49,2 vs.\ 49,6; mediana 49) y la
+mezcla por sector se mantiene (seguros domina con $\approx$40--46\,\% en ambos; el orden de los
+principales sectores no cambia). El único desplazamiento apreciable es el \textbf{género}: la proporción
+de hombres sube del 43,5\,\% al 49,1\,\%, efecto esperable porque los clics tienden a proceder de hombres
+(su \textit{CTR} es algo mayor) y el muestreo conserva todos los clics; el remuestreo
+reequilibra así la respuesta sin sesgar materialmente el perfil de la muestra.
+
+\begin{table}[htbp]
+\centering
+\caption{Descriptivos de las variables observadas: antes (bruto) vs.\ después del remuestreo}
+\label{tab:antes_despues}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Conjunto} & \textbf{Eventos} & \textbf{Clic \%} & \textbf{Usuarios} & \textbf{Edad media} & \textbf{Hombres \%} \\
+\midrule
+Antes (bruto)        & 2.026.166 & 2,2  & 306.476 & 49,2 & 43,5 \\
+Después (balanceado) & 50.087    & 23,8 & 35.405  & 49,6 & 49,1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_eda_antes_despues}
+\caption{Variables observadas antes (gris) vs.\ después (rojo) del remuestreo: edad y género por usuario, mezcla por sector y variable respuesta. El remuestreo reequilibra la respuesta preservando edad y sector; el género se desplaza levemente hacia hombres.}
+\label{fig:eda_antes_despues}
+\end{figure}
+
+\subsection{Perfil demográfico de los usuarios}
+
+La Figura~\ref{fig:eda_demographics} resume las principales variables de usuario. La \textbf{edad} se concentra entre los 35 y los 64 años (media 50, rango 20--117); para el modelado se discretiza en seis bandas (\texttt{age\_cat}: 18-24, 25-34, 35-44, 45-54, 55-64 y 65+), siendo 45-54 la más poblada. El \textbf{género} está prácticamente equilibrado. La \textbf{situación laboral} refleja las tasas del INE (en torno al 53\,\% de empleados), el \textbf{estado civil} predomina en ``casado'' y la \textbf{clase de renta} (índice de poder adquisitivo, IPA) se concentra en los niveles medio y medio-bajo. Salvo la edad y las variables geográficas, estos atributos son imputaciones sintéticas, con la salvedad de calidad ya señalada (``Limitación fundamental'').
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{fig_eda_demographics}
+\caption{Distribuciones demográficas de los usuarios: edad (continua y categorizada en las bandas \texttt{age\_cat} del modelo M2), género, situación laboral, estado civil y clase de renta (IPA).}
+\label{fig:eda_demographics}
+\end{figure}
+
+\subsection{Comportamiento por sector}
+
+La tasa de clic varía notablemente según el \textbf{sector} del producto (Figura~\ref{fig:eda_ctr_sector}). \texttt{motor} es el sector con mayor propensión (0,37), seguido de \texttt{servicios legales} (0,29) y \texttt{hogar} (0,27); \texttt{seguros}, el de mayor volumen, con 22.833 eventos, tiene una tasa del 0,26, mientras que \texttt{sorteos} (0,10) y \texttt{derechos humanos} (0,07) son los menos efectivos. Esta heterogeneidad entre sectores sugería \emph{a priori} una arquitectura jerárquica sector\,$\rightarrow$\,producto (estimar primero la propensión de sector y afinar después el producto concreto). Sin embargo, la comparación del módulo de propensión (Capítulo~\ref{cap:propension}) muestra que esa descomposición empeora el rendimiento en todos los algoritmos, por lo que el sector se incorpora finalmente como una variable más de un modelo plano.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_eda_ctr_sector}
+\caption{Tasa de clic por sector (solo sectores con $\geq$100 eventos). La línea discontinua marca la tasa global (0,238); en rojo, los sectores por encima de la media.}
+\label{fig:eda_ctr_sector}
+\end{figure}
+
+\subsection{Tasa de clic por variables demográficas}
+
+Las variables demográficas \emph{reales} (edad y género, las únicas observadas y no imputadas) apenas discriminan la propensión al clic (Figura~\ref{fig:eda_ctr_demo}). Por \textbf{género}, los hombres clican algo más que las mujeres (0,26 frente a 0,22). Por \textbf{banda de edad}, la tasa oscila entre 0,20 (25--44 años) y 0,30 (55--64 años), con un patrón en forma de U suave; la banda 18--24, con tasa aparentemente alta (0,31), apenas tiene 179 eventos y no es concluyente. Las diferencias demográficas en la tasa de clic son modestas (del orden de $\pm0{,}05$ alrededor de la media de 0,238) frente a la fuerte variación por sector (de 0,07 a 0,37). Este contraste anticipa el hallazgo central del módulo de propensión (Capítulo~\ref{cap:propension}): la señal reside mucho más en el \emph{producto} que en el \emph{perfil} del usuario.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.92\textwidth]{fig_eda_ctr_demo}
+\caption{Tasa de clic por banda de edad (izquierda) y por género (derecha). La línea discontinua marca la tasa global (0,238). Las diferencias demográficas son modestas frente a las del sector.}
+\label{fig:eda_ctr_demo}
+\end{figure}
+
+\subsection{Catálogo de productos y coste por lead (CPL)}
+
+El catálogo está concentrado: las 25 categorías no se reparten de forma uniforme. La Figura~\ref{fig:eda_products} (izquierda) muestra las doce categorías con más eventos; \texttt{health\_insurance} (10.623 eventos), \texttt{energy\_plan} y \texttt{funeral\_insurance} encabezan el volumen. Esta concentración es relevante para la recomendación: las tres categorías más clicadas acumulan el 45\,\% de todos los clics y las cinco primeras el 60\,\%, lo que convierte la \emph{popularidad} en un \textit{baseline} difícil de batir (Capítulo~\ref{cap:recomendador}). El color de cada barra indica si su CTR supera la media: categorías como \texttt{vehicle\_purchase} (CTR 0,43) o \texttt{home\_security} (0,33) son muy efectivas pese a su menor volumen.
+
+El \textbf{CPL} (coste por lead, interpretado como el beneficio que deja cada clic en el análisis de ROI) está disponible en 54 de los 70 productos; en los registros sin CPL informado se imputa con la mediana de 8\,\euro. Su distribución (Figura~\ref{fig:eda_products}, derecha) es asimétrica, con la mayoría de productos entre 5 y 12\,\euro\ y una cola hasta 31\,\euro; los sectores de mayor CPL medio son \emph{salud y belleza} (19\,\euro) y \emph{hogar} (14,5\,\euro). Estas cifras alimentan el análisis económico del Capítulo~\ref{cap:negocio}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_eda_products}
+\caption{Izquierda: top 12 categorías por volumen de eventos, coloreadas según si su CTR supera (rojo) o no (azul) la media global; se anota el CTR de cada una. Derecha: distribución del CPL entre los productos que lo tienen informado.}
+\label{fig:eda_products}
+\end{figure}
+
+\subsection{Esparsidad y actividad por usuario}
+
+El condicionante estructural más importante del proyecto es la \textbf{escasez de interacciones por usuario} (Figura~\ref{fig:eda_sparsity}): el 83,8\,\% de los usuarios tiene un único evento registrado, la media es de 1,32 eventos y el máximo, 42. Combinado con los 70 productos, esto produce una matriz usuario--producto vacía en un 98,1\,\%. La consecuencia metodológica es directa: con tan poco historial individual no es viable el filtrado colaborativo clásico ni un recomendador puramente individual, y se imponen los enfoques basados en \emph{características} (del usuario y, sobre todo, del producto) y en \emph{segmentos} de comportamiento.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.6\textwidth]{fig_eda_sparsity}
+\caption{Número de eventos por usuario (agrupando en ``5+'' los usuarios con cinco o más). La gran mayoría interactúa una sola vez.}
+\label{fig:eda_sparsity}
+\end{figure}
+
+\subsection{Evolución temporal}
+
+La actividad no es uniforme en el tiempo (Figura~\ref{fig:timeseries}): tras un arranque gradual, el volumen de clics se concentra entre agosto y diciembre de 2025, precedido de un período de baja actividad (menos de 50 clics semanales) anterior al 28 de julio de 2025. Esta concentración condiciona el módulo de previsión temporal (M4), que solo dispone de unas 22 semanas de histórico activo.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{fig_timeseries}
+\caption{Evolución semanal del volumen de clics (enero 2025 -- enero 2026). La franja sombreada gris delimita el período inactivo anterior al arranque de la campaña activa (28 de julio de 2025).}
+\label{fig:timeseries}
+\end{figure}
+
+\subsection{Calidad de los datos}
+
+\paragraph{Embudo de depuración.} El dataset final es el resultado de una cadena de filtros sucesivos sobre los datos brutos, resumida en la Tabla~\ref{tab:funnel}. Cada paso responde a un criterio de calidad explícito (eliminar registros sin información clave, garantizar la privacidad, evitar duplicados y asegurar un perfil geográfico resoluble). La caída más relevante en usuarios se produce al exigir una correspondencia código postal\,$\rightarrow$\,municipio (un 6,4\,\% no resoluble), descartada para no introducir perfiles geográficos imputados de forma arbitraria.
+
+\begin{table}[htbp]
+\centering
+\caption{Embudo de depuración: del dato bruto al dataset final de modelado}
+\label{tab:funnel}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Etapa} & \textbf{Eventos} & \textbf{Clics} & \textbf{Usuarios} \\
+\midrule
+Datos brutos (todos los ficheros raw)                             & 2.026.166 & 44.997 (2,2\,\%) & --- \\
+Muestra balanceada 1:1 + limpieza (dedup email/asunto, edad 18--120, ausentes) & 50.087 & 11.940 (23,8\,\%) & 37.815 \\
+Tras exigir resolución código postal\,$\rightarrow$\,municipio    & 50.087 & 11.940 & 35.405 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Completitud y consistencia.} Tras la limpieza, las tablas no presentan valores ausentes en las variables empleadas por los modelos (la única columna sin poblar es \texttt{district\_name}, no utilizada en el modelado); el CPL, ausente en parte de los registros, se imputa con la mediana (8\,\euro) solo para el análisis de ROI. No se detectaron duplicados en las tablas dimensionales tras la deduplicación de eventos. La cobertura del enriquecimiento geográfico alcanza el 100\,\% de los 35.405 usuarios finales. La principal salvedad de calidad es la ya señalada: las variables demográficas \emph{finas} (laboral, hogar, vehículo, etc.) son imputaciones ecológicas cuya calidad individual está acotada por construcción (``Limitación fundamental'').

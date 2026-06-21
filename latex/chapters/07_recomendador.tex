@@ -1,0 +1,49 @@
+\chapter{Módulo M3 — Recomendador por cluster}
+\label{cap:recomendador}
+
+\section{Método}
+
+El recomendador opera a nivel de cluster: el \textit{ranking} de categorías se calcula por segmento comportamental M1 (Capítulo~\ref{cap:segmentacion}) y se sirve a todos sus miembros (un usuario obtiene las recomendaciones de su cluster). Esta decisión nace de la esparsidad del historial. Para justificarla, se parte de un esquema híbrido que combina dos señales de comportamiento para puntuar cada par (usuario, categoría de producto):
+\begin{equation}
+    s(u, p) = \alpha \cdot \hat{p}_\text{ind}(u, p) + (1-\alpha) \cdot a(s_u, p)
+    \label{eq:hybrid}
+\end{equation}
+donde $a(s_u, p)$ es la afinidad (tasa de clic normalizada) del segmento comportamental $s_u$ del usuario hacia la categoría $p$, y $\hat{p}_\text{ind}(u, p)$ es la tasa de clic histórica del propio usuario en esa categoría. El componente individual se calcula únicamente con los eventos de entrenamiento (no se reutilizan las puntuaciones \textit{out-of-fold} de M2, que mezclaban información de todo el dataset y habrían contaminado la evaluación temporal).
+
+El peso $\alpha$ se ajusta en un conjunto de validación (no en el de test). Con los datos actuales el óptimo es $\alpha=0$: dada la esparsidad (mediana de un evento por usuario), el historial individual no aporta y la señal útil es la afinidad del segmento. Por ello el recomendador prescinde del término individual y sirve directamente el \textit{ranking} del cluster. Para usuarios nuevos sin historial (\textit{cold start}) se emplea la afinidad del cluster demográfico M0.
+
+\subsection*{Evaluación sin fuga}
+
+Como el segmento M1 se construye con todo el historial, evaluarlo sobre un \textit{split} temporal contaminaría la prueba (la pertenencia al cluster ``vería'' el futuro). Por ello, \emph{para evaluar}, el segmento se reconstruye usando solo los eventos de \textit{train} (replicando el pipeline de M1: \texttt{log1p}\,$\rightarrow$\,estandarización\,$\rightarrow$\,PCA\,$\rightarrow$\,KMeans, $k{=}12$), y la afinidad se estima también solo con \textit{train}; en servicio se usa el segmento con todo el historial (uso legítimo, no fuga). La evaluación usa una partición temporal en tres (train / validación / test, 70/10/20 por fecha). Las métricas son Hit Rate@$K$, NDCG@$K$ y MAP@$K$ (Sección~\ref{sec:metricas}), comparadas frente a dos \textit{baselines} (popularidad global y cluster demográfico). El contraste estadístico combina el test de \textbf{Friedman} (diferencia global sobre el NDCG@10 por usuario), \textit{post-hoc} de \textbf{Wilcoxon} pareado y \textbf{McNemar} (sobre los aciertos de HR@5), con corrección de Holm, tamaños de efecto (W de Kendall y rango-biserial) e intervalos de confianza \textit{bootstrap}.
+
+Cada método ordena las categorías por su propio criterio (el recomendador por la \emph{tasa de clic} del segmento y los \textit{baselines} por el \emph{número de clics}). Como las métricas de \textit{ranking} (HR@$K$, NDCG, MAP) dependen únicamente del \emph{orden} de las categorías y no de su escala, la forma de normalizar cada señal no afecta a la comparación.
+
+\section{Resultados}
+
+El recomendador genera el top-5 de categorías a nivel de cluster. La Tabla~\ref{tab:m3_results} y la Figura~\ref{fig:m3_recommender} comparan el recomendador (sin fuga) con los \textit{baselines} sobre 1.573 usuarios con clic en test.
+
+\begin{table}[htbp]
+\centering
+\caption{M3: recomendador por cluster (segmento M1 sin fuga) frente a baselines (test temporal, $n=1.573$)}
+\label{tab:m3_results}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Método} & \textbf{HR@5} & \textbf{HR@10} & \textbf{NDCG@10} & \textbf{MAP@10} \\
+\midrule
+\textbf{Baseline popularidad}              & \textbf{0,629} & \textbf{0,806} & \textbf{0,580} & \textbf{0,500} \\
+Cluster demográfico                        & 0,629 & 0,789 & 0,572 & 0,496 \\
+Recomendador por cluster (M1)              & 0,586 & 0,774 & 0,521 & 0,439 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{fig_m3_recommender}
+\caption{Comparación del recomendador por cluster (segmento M1, sin fuga temporal) frente a los baselines de popularidad y cluster demográfico (test temporal).}
+\label{fig:m3_recommender}
+\end{figure}
+
+Una vez eliminada la fuga, el recomendador por cluster no supera a la popularidad en ninguna métrica. La popularidad obtiene mejor HR@5 (0,629 vs.\ 0,586; test de McNemar $p_{\text{Holm}}=3{,}4\times10^{-8}$, el \textit{baseline} gana en 102 usuarios frente a 35), y también mejor HR@10, NDCG@10 y MAP@10. El test de Friedman sobre el NDCG@10 confirma que existen diferencias entre los tres métodos ($\chi^2=142$, $p\approx10^{-31}$), si bien su tamaño de efecto global es pequeño (W de Kendall $=0{,}05$), porque dos de los tres métodos son casi idénticos. El \textit{post-hoc} de Wilcoxon con corrección de Holm lo precisa: popularidad y cluster demográfico son equivalentes entre sí ($p_{\text{Holm}}=0{,}31$; tamaño de efecto rango-biserial $|r|=0{,}06$, despreciable), mientras que ambos superan al recomendador por cluster con un tamaño de efecto grande ($p_{\text{Holm}}<10^{-22}$; $|r|=0{,}65$ y $0{,}54$). La inferioridad del recomendador, por tanto, no es solo estadísticamente significativa: es de magnitud considerable. La ventaja del recomendador comportamental que se observaba con el segmento \emph{contaminado} (HR@5 de 0,687) era un artefacto de fuga (inflación de $\approx0{,}10$ en HR@5).
+
+La lectura es coherente con el resto del trabajo: con un catálogo reducido (25 categorías) y clics muy concentrados, la popularidad es un \textit{baseline} muy difícil de batir, y la señal de segmento no añade poder predictivo sobre ella. El valor del recomendador por cluster es operativo (segmentos interpretables, \textit{ranking} homogéneo y estable por grupo, y una solución natural de arranque en frío), no de mejora de \textit{ranking} frente a popularidad.

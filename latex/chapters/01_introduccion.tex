@@ -1,0 +1,40 @@
+\chapter{Introducción}
+
+\section{Contexto y motivación}
+
+El correo electrónico sobrevive a la proliferación de canales publicitarios por una razón económica: su coste por impacto es bajo y permite ajustar el mensaje al perfil de cada receptor. Esa ventaja, sin embargo, solo se materializa cuando la empresa acierta a quién contactar y con qué producto. Una campaña enviada de forma indiscriminada gasta el mismo presupuesto que una segmentada, pero rinde mucho menos; el problema, por tanto, no es enviar correos, sino decidir bien a quién dirigir cada uno.
+
+En la práctica, los responsables de campaña se enfrentan a un problema de asignación de inversión con información incompleta: el comportamiento real del usuario ante un correo electrónico es difícil de anticipar, y los datos disponibles suelen ser escasos, ruidosos y con un fuerte desbalanceo entre interacciones positivas y negativas. La tasa real de clic en campañas de email marketing se sitúa habitualmente por debajo del 5\%, lo que convierte la predicción de comportamiento en un problema de clasificación con clases muy desbalanceadas.
+
+El aprendizaje automático ofrece herramientas para abordar este problema de forma sistemática, combinando señales de comportamiento pasado con características del usuario y del producto anunciado. No obstante, su aplicación efectiva requiere decisiones metodológicas cuidadosas, especialmente en lo relativo al tratamiento del desbalanceo de clases, la escasez de interacciones observadas y la incorporación de información contextual externa.
+
+\section{Pregunta de investigación y objetivos}
+
+La pregunta central de este trabajo es la siguiente: \textit{¿en qué medida es posible predecir la probabilidad de interacción de un usuario con una campaña de email marketing a partir de su perfil demográfico, su historial de comportamiento y las características del producto anunciado, y qué tipo de señal resulta más determinante?}
+
+Para dar respuesta a esta pregunta, se plantean los siguientes objetivos:
+
+\begin{enumerate}
+    \item Construir un pipeline de preprocesado que integre datos de campaña con información geográfica y demográfica de fuentes externas, generando perfiles de usuario completos y homogéneos.
+    \item Desarrollar dos niveles de segmentación no supervisada: una segmentación demográfica pura para la asignación de usuarios nuevos (arranque en frío), y una segmentación comportamental basada en el historial de interacciones.
+    \item Implementar un modelo de propensión que combine variables de usuario y de producto ---incluido el texto del asunto del correo---, comparando algoritmos y arquitecturas (plano frente a jerárquico), validado sin fuga de datos y con corrección explícita del sesgo de muestreo introducido por el entrenamiento balanceado.
+    \item Construir un sistema de recomendación de productos y evaluarlo de forma controlada (partición temporal, \textit{baselines} de referencia y contraste estadístico), determinando qué señal (comportamental o demográfica) resulta más útil para el \textit{ranking}.
+    \item Predecir el volumen semanal de clics mediante modelado de series temporales para apoyar la planificación de campañas.
+\end{enumerate}
+
+\medskip
+\noindent\textbf{Enfoque y contribución.} El énfasis de este trabajo es metodológico. Más que maximizar una métrica de exactitud, se construye un pipeline reproducible de extremo a extremo (del dato bruto a un ejemplo de despliegue) que toma cada decisión de forma justificada: validación sin fuga de datos, comparación de cada modelo frente a \textit{baselines} triviales antes de adoptarlo, corrección del sesgo de muestreo y contraste estadístico de cada afirmación. La aportación no es un predictor de máximo rendimiento, sino un proceso que determina, con evidencia, qué señal es útil, qué modelo merece desplegarse y a qué coste. Por ello varias de las hipótesis siguientes se plantean precisamente para poder ser \emph{refutadas}: el valor del trabajo está tanto en confirmarlas como en descartarlas con fundamento. En suma, este TFM es una guía de cómo abordaría un equipo de datos un proyecto orientado a maximizar el ROI de las campañas: qué construir en cada etapa, cómo validarlo y cómo decidir qué merece desplegarse y qué no. El objeto de estudio es, por tanto, \emph{el método} tanto como los modelos: que algunos resultados sean negativos no resta valor al trabajo, sino que muestra el proceso funcionando como debe.
+
+\medskip
+\noindent\textbf{Hipótesis.} A partir de la pregunta y los objetivos, el trabajo contrasta cuatro hipótesis falsables:
+\begin{itemize}
+    \item \textbf{H1.} Las variables de \emph{producto} (sector, categoría y texto del asunto) mejoran de forma significativa la propensión al clic frente a un modelo que solo usa variables de usuario y frente al \textit{baseline} de popularidad.
+    \item \textbf{H2.} Las variables demográficas enriquecidas aportan poder predictivo a la propensión al clic; se contrasta pese a su naturaleza sintética (Capítulo~\ref{cap:datos}), precisamente para medir cuánta señal individual conservan.
+    \item \textbf{H3.} Un recomendador basado en el segmento comportamental del usuario supera al \textit{baseline} de popularidad en el \textit{ranking} de productos.
+    \item \textbf{H4.} El modelo Prophet mejora la previsión del volumen de clics frente a \textit{baselines} ingenuos (naïve y media móvil).
+\end{itemize}
+El contraste de cada hipótesis se aborda, respectivamente, en los módulos M2 (Capítulo~\ref{cap:propension}; H1 y H2, esta última vía el estudio de ablación), M3 (Capítulo~\ref{cap:recomendador}; H3) y M4 (Capítulo~\ref{cap:forecast}; H4).
+
+\section{Estructura de la memoria}
+
+La memoria se organiza siguiendo el flujo del pipeline. El capítulo~\ref{cap:estado_arte} revisa el estado del arte en modelado de propensión, segmentación de clientes, sistemas de recomendación y predicción temporal aplicados al marketing digital. El capítulo~\ref{cap:datos} describe las fuentes de datos, el proceso de limpieza, el enriquecimiento demográfico-geográfico y el análisis exploratorio. El capítulo~\ref{cap:evaluacion} ofrece una visión general del pipeline y el marco de evaluación común (métricas, validación sin fuga y pruebas estadísticas). A continuación, cada módulo se presenta en su propio capítulo, exponiendo de forma conjunta su método y sus resultados: segmentación de clientes (Capítulo~\ref{cap:segmentacion}), modelo de propensión (Capítulo~\ref{cap:propension}), recomendador (Capítulo~\ref{cap:recomendador}) y previsión temporal (Capítulo~\ref{cap:forecast}). El capítulo~\ref{cap:negocio} cubre el despliegue de ejemplo y el análisis de retorno de la inversión. Finalmente, el capítulo~\ref{cap:conclusiones} recoge la discusión, las conclusiones y las líneas de trabajo futuro.

@@ -1,0 +1,55 @@
+﻿\chapter{Estado del arte}
+\label{cap:estado_arte}
+
+\section{Email marketing y comportamiento del usuario}
+
+El email marketing es uno de los canales de marketing directo con mayor longevidad en el entorno digital, con un retorno medio de entre 36 y 40 dólares por cada dólar invertido según los informes anuales de la industria \cite{litmus2023}. La literatura coincide en que ese rendimiento depende de la capacidad de segmentar la audiencia y personalizar el mensaje, dos problemas sobre los que se asienta el resto de este capítulo.
+
+El comportamiento del usuario ante un correo electrónico se modela habitualmente mediante tres tipos de evento: impresión (\textit{open}), interacción activa (\textit{click}) y ausencia de respuesta (\textit{ignored}). La tasa de clic sobre impresiones (\textit{click-through rate}, CTR) varía entre el 1\% y el 5\% dependiendo del sector, lo que genera un fuerte desbalanceo de clases que condiciona las decisiones metodológicas en los modelos predictivos \cite{chaffey2024}.
+
+Desde el punto de vista predictivo, los primeros trabajos en este dominio se basaron en modelos logísticos y árboles de decisión aplicados sobre atributos del correo y del receptor \cite{sahni2016}. Con la aparición de métodos de \textit{gradient boosting} y el incremento en la disponibilidad de datos, los enfoques basados en LightGBM \cite{ke2017lightgbm} y XGBoost \cite{chen2016xgboost} se han convertido en el estándar industrial para la predicción de comportamiento en marketing directo, gracias a su capacidad de manejar variables categóricas, datos faltantes y desequilibrios de clase de forma nativa.
+
+\section{Segmentación de clientes}
+
+La segmentación de clientes tiene como objetivo identificar grupos de usuarios con patrones de comportamiento o características demográficas similares, de modo que la comunicación pueda adaptarse a cada grupo. Los métodos de clustering no supervisado más utilizados en este dominio son KMeans \cite{macqueen1967}, modelos de mezcla gaussiana \cite{reynolds2009} y algoritmos de clustering basado en densidad como DBSCAN \cite{ester1996} y su extensión jerárquica HDBSCAN \cite{campello2013}.
+
+La elección del número de clusters es uno de los problemas fundamentales del aprendizaje no supervisado. Los criterios más utilizados son el coeficiente de silueta \cite{rousseeuw1987}, el índice de Calinski-Harabasz \cite{calinski1974} y el índice de Davies-Bouldin \cite{davies1979}, que evalúan la cohesión intra-cluster y la separación inter-cluster desde perspectivas complementarias.
+
+En contextos con alta dimensionalidad, es habitual aplicar técnicas de reducción dimensional previas al clustering. El Análisis de Componentes Principales (PCA) \cite{jolliffe2002} es la técnica lineal más utilizada; los autoencoders \cite{hinton2006} permiten capturar relaciones no lineales que PCA no modela. Trabajos sobre \textit{deep embedded clustering} muestran que las representaciones aprendidas por redes neuronales pueden mejorar el agrupamiento frente a métodos lineales al capturar estructura no lineal de los datos \cite{xie2016}.
+
+Para la visualización de clusters en dos dimensiones, UMAP \cite{mcinnes2018} ha sustituido progresivamente a t-SNE \cite{vandermaaten2008} en la práctica gracias a su mayor velocidad y a la preservación de la estructura global de los datos.
+
+\section{Modelos predictivos en marketing}
+
+\subsection{Modelado de propensión}
+
+El modelado de propensión (\textit{propensity modeling}) consiste en estimar la probabilidad de que un individuo realice una acción de interés —en este caso, hacer clic en un correo— dado su perfil observable. Es una aplicación directa de la clasificación binaria con especial énfasis en la calibración de probabilidades.
+
+Un reto frecuente en este contexto es el sesgo de muestreo: cuando los datos de entrenamiento se construyen con una proporción artificial de positivos y negativos distinta de la distribución real, las probabilidades predichas quedan infladas o defladas respecto al prior verdadero. La corrección de Dal Pozzolo et al. \cite{dalpozzolo2015} proporciona un ajuste exacto en log-odds para recuperar probabilidades calibradas respecto al prior real:
+\begin{equation}
+    \text{logit}(\hat{p}_\text{real}) = \text{logit}(\hat{p}_\text{model}) + \log\frac{\rho_\text{real}}{1-\rho_\text{real}} - \log\frac{\rho_\text{train}}{1-\rho_\text{train}}
+    \label{eq:prior_correction}
+\end{equation}
+donde $\rho_\text{real}$ es la tasa real de positivos en producción y $\rho_\text{train}$ es la tasa en el conjunto de entrenamiento.
+
+\subsection{Representación del contenido textual}
+
+El asunto de un correo es un texto corto cuya semántica influye directamente en la decisión de clic, por lo que incorporarlo como variable predictiva requiere convertirlo en una representación numérica. Los modelos de lenguaje basados en \textit{Transformers}, como BERT \cite{devlin2019bert}, aprenden representaciones contextuales del lenguaje a partir de grandes corpus. Sobre esta base, Sentence-BERT \cite{reimers2019sbert} produce \textit{embeddings} de frase comparables mediante similitud coseno, y su extensión multilingüe mediante destilación de conocimiento \cite{reimers2020multilingual} permite obtener representaciones consistentes para textos en español. Estos \textit{embeddings} pueden emplearse como variables de entrada en modelos tabulares, aportando la señal de contenido que las variables categóricas del producto no capturan.
+
+\subsection{Sistemas de recomendación}
+
+Los sistemas de recomendación se clasifican habitualmente en tres paradigmas: filtrado colaborativo, filtrado basado en contenido e híbridos \cite{burke2002}. En entornos con alta esparsidad de interacciones —frecuente en email marketing, donde la mayoría de usuarios tiene solo una o dos interacciones observadas— el filtrado colaborativo clásico basado en factorización de matrices \cite{koren2009} pierde eficacia y se prefieren enfoques híbridos que combinan información del perfil del usuario con patrones de comportamiento de su segmento.
+
+\subsection{Predicción temporal de demanda}
+
+La predicción del volumen de clics a nivel agregado es un problema de series temporales univariante. Prophet \cite{taylor2018forecasting} es un modelo aditivo que descompone la serie en tendencia, estacionalidad y efectos de días festivos, con especial robustez ante datos faltantes y cambios de tendencia. Ha mostrado un rendimiento competitivo en problemas de demanda con estacionalidad múltiple cuando el histórico disponible cubre al menos dos períodos estacionales completos.
+
+\subsection{Validación rigurosa y comparación de modelos}
+
+La estimación fiable del rendimiento de un modelo exige evitar la fuga de información (\textit{data leakage}) \cite{kaufman2012leakage}, problema que se desarrolla en el Capítulo~\ref{cap:evaluacion}. Un caso habitual surge cuando varias observaciones comparten la misma entidad ---por ejemplo, múltiples eventos de un mismo usuario con atributos idénticos---: una validación cruzada que no agrupe por entidad permite que el modelo memorice perfiles y sobreestime su capacidad de generalización, por lo que debe emplearse validación cruzada agrupada. Además, la mera diferencia en una métrica entre dos modelos no es concluyente: para sustentar que un modelo supera a otro se recomiendan pruebas estadísticas, como el test pareado $5\times2$cv de Dietterich \cite{dietterich1998} o las pruebas no paramétricas (Wilcoxon y Friedman) sistematizadas por Dem\v{s}ar \cite{demsar2006}, junto con correcciones por comparaciones múltiples cuando se contrastan varios modelos a la vez.
+
+\section{Enriquecimiento de datos geográficos y demográficos}
+
+El enriquecimiento de perfiles de usuario con información geográfica y demográfica es una práctica consolidada en marketing de precisión. En el contexto español, el Instituto Nacional de Estadística (INE) publica datos de actividad económica, desempleo y composición del hogar a nivel municipal y provincial que permiten imputar características socioeconómicas para usuarios de los que solo se dispone de código postal \cite{ine2025}.
+
+Esta estrategia de imputación ecológica —asignar a cada individuo la distribución de su área de residencia— introduce una aproximación que puede no reflejar exactamente las características individuales, especialmente en municipios con alta heterogeneidad interna. Sin embargo, en ausencia de datos individuales observados, constituye la alternativa más rigurosa y trazable disponible \cite{greenland2001}.

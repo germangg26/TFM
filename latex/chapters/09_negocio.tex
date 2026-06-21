@@ -1,0 +1,120 @@
+\chapter{Despliegue y análisis de negocio}
+\label{cap:negocio}
+
+Este capítulo cierra el pipeline con su vertiente aplicada: un ejemplo de despliegue del sistema como servicio y un análisis del retorno de la inversión (ROI) que traduce las predicciones de propensión a una decisión de negocio.
+
+\section{Despliegue}
+
+Como demostración de productización se implementó una API REST de ejemplo (FastAPI) que sirve las recomendaciones: para un usuario conocido devuelve su top-5 precalculado en \textit{batch}; para un usuario nuevo aplica el pipeline de arranque en frío (\textit{features} $\rightarrow$ cluster demográfico $\rightarrow$ afinidades del cluster); y recurre a la popularidad como último recurso. La API expone además un \textit{endpoint} \texttt{/propensity} que, a partir del modelo plano de M2, devuelve para un usuario o un perfil la probabilidad de clic desglosada por sector y por producto (probabilidades independientes \textit{one-vs-rest}, corregidas al prior real), que es la forma operativa de decidir qué enviar a quién. No constituye un servicio de producción, sino una ilustración del flujo de inferencia.
+
+\subsection{Especificación de la API}
+
+La API expone cinco \textit{endpoints} (Tabla~\ref{tab:api}). Las entradas de los métodos \texttt{POST} son un objeto JSON con el perfil del usuario, cuyos campos categóricos se introducen como texto legible (p.\,ej.\ \texttt{mun\_type="Ciudad"}); la API realiza internamente la codificación numérica que espera el modelo, garantizando el mismo orden de variables que en el entrenamiento. Todos los campos son opcionales y tienen un valor por defecto, y las entradas fuera de dominio se rechazan automáticamente con un error 422.
+
+\begin{table}[htbp]
+\centering
+\caption{Endpoints de la API de ejemplo}
+\label{tab:api}
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{Método y ruta} & \textbf{Entrada} & \textbf{Salida} \\
+\midrule
+\texttt{GET /health}                 & ---            & estado y nº de artefactos \\
+\texttt{GET /recommend/\{user\_id\}}  & id de usuario  & top-5 de categorías del cluster \\
+\texttt{POST /recommend/coldstart}    & perfil (JSON)  & top-5 vía cluster demográfico \\
+\texttt{GET /propensity/\{user\_id\}} & id de usuario  & prob.\ de clic por sector y producto \\
+\texttt{POST /propensity}             & perfil (JSON)  & prob.\ de clic por sector y producto \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El \textit{endpoint} \texttt{/propensity} devuelve, para un usuario o perfil, la probabilidad de clic de cada uno de los 13 sectores y las 25 categorías de producto (cada producto acompañado de su sector), ya corregida al \textit{prior} real ($\approx 2$\,\%). Son probabilidades independientes (\textit{one-vs-rest}): cada una responde ``¿cuál es la probabilidad de clic si le envío esto?'' y no suman uno. Un ejemplo de respuesta para el producto más propenso de un perfil dado sería \texttt{\{"producto":"car\_leasing","sector":"motor","p\_click":0.046\}}.
+
+\section{Análisis de retorno de la inversión (ROI)}
+\label{sec:roi}
+
+Para evaluar el valor de negocio, se compara el ROI de la campaña registrada en la base de datos
+(``enviar a todos'') frente a nuestro modelo (``priorizar''). Se interpreta el CPL como el beneficio
+que deja cada clic; el beneficio de un producto es (clics $\times$ CPL). El coste de enviar un email se
+analiza bajo tres estructuras, todas por email enviado: \emph{fijo} (un valor igual para todos los
+productos, 1\,\euro), \emph{variable} (un porcentaje del CPL del producto; se comparan 20\,\%, 30\,\% y
+40\,\%) y \emph{mixto} (una base fija de 0,50\,\euro\ más el 15\,\% del CPL). El modelo envía un email solo
+si su beneficio esperado ($p_\text{model}\times\text{CPL}$) supera su coste marginal; en el caso variable
+esta regla equivale exactamente a $p_\text{model}\ge\text{porcentaje}$. La Tabla~\ref{tab:roi_producto} recoge el ROI agregado por estructura de coste.
+
+\begin{table}[htbp]
+\centering
+\caption{ROI agregado: campaña de la BD vs.\ modelo de priorización, por estructura de coste por email}
+\label{tab:roi_producto}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Estructura de coste} & \textbf{ROI BD} & \textbf{ROI modelo} & \textbf{Mejora} & \textbf{Emails} & \textbf{Prod.\ mejoran} \\
+\midrule
+Fijo (1\,\euro/email)         &    101\% & \textbf{148\%} & \textbf{+47\,pts} & 72,0\% & 21/25 \\
+Variable 20\,\% CPL           &     18\% & \textbf{67\%}  & \textbf{+49\,pts} & 48,2\% & 22/25 \\
+Variable 30\,\% CPL           & $-$21\%  & \textbf{37\%}  & \textbf{+58\,pts} & 24,3\% & 21/25 \\
+Variable 40\,\% CPL           & $-$41\%  & \textbf{21\%}  & \textbf{+62\,pts} & 12,2\% & 19/25 \\
+Mixto (0,50\,\euro\ + 15\,\% CPL) & 13\% & \textbf{65\%}  & \textbf{+52\,pts} & 41,7\% & 21/25 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A diferencia de la estructura puramente fija \emph{por producto} (donde enviar a todos sería óptimo porque
+el coste no depende del volumen), al ser el coste marginal por email la priorización aporta valor en
+las tres estructuras: el modelo deja de enviar los emails cuyo beneficio esperado no cubre su coste y descarta
+productos deficitarios (CPL bajo y poca propensión, p.\,ej.\ \texttt{life\_insurance}, \texttt{sweepstakes},
+\texttt{loan}). Cuanto más caro es el email (porcentajes altos del CPL), más selectivo se vuelve el modelo
+(del 72\,\% de envíos con coste fijo al 12\,\% con el 40\,\% del CPL). La Figura~\ref{fig:roi} resume el ROI
+agregado en todos los escenarios.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.75\textwidth]{fig_roi}
+\caption{ROI agregado según la estructura de coste por email: campaña de la BD frente al modelo de priorización.}
+\label{fig:roi}
+\end{figure}
+
+El caso \emph{fijo} (1\,\euro/email) mejora el ROI de 101\,\% a 148\,\% enviando al 72\,\% de mayor
+propensión: filtra el $\approx$28\,\% de envíos cuyo beneficio esperado no cubre el coste. En el caso
+\emph{variable}, la regla $p_\text{model}\ge\text{porcentaje}$ es más exigente cuanto mayor es el
+porcentaje: enviar a todos resulta \emph{deficitario} a partir del 30\,\% (ROI negativo), porque el coste por
+email es alto frente a la tasa de clic del \emph{sample} ($\approx$24\,\%); el modelo lo rescata a
+positivo en todos los casos (del $-$21\,\% al $+$37\,\% con el 30\,\%; del $-$41\,\% al $+$21\,\% con el
+40\,\%), a costa de enviar cada vez menos. El caso \emph{mixto} mejora de 13\,\% a 65\,\%.
+
+\begin{hallazgo}
+Bajo coste marginal por email, el modelo de priorización mejora el ROI en las tres
+estructuras de coste (p.\,ej.\ 101\,\%\,$\to$\,148\,\% en el caso fijo): filtra los envíos cuyo beneficio
+esperado no cubre su coste y rescata a positivo incluso los escenarios donde enviar a todos es
+deficitario (variable $\geq$30\,\%). El grado de filtrado depende del coste por email: del $\approx$28\,\% de
+envíos descartados con coste fijo al $\approx$88\,\% con el 40\,\% del CPL. La elección del punto de operación
+depende del objetivo de negocio: maximizar la \emph{eficiencia} (\euro\ por clic) o el \emph{alcance} (clics
+totales).
+\end{hallazgo}
+
+\paragraph{Apunte: propensión, no incrementalidad.} El modelo estima la \emph{propensión} (probabilidad de clic), no la \emph{incrementalidad} o \textit{uplift} (el efecto \emph{causal} del envío): el ROI atribuye al email todos los clics de los usuarios priorizados, aunque algunos habrían ocurrido igualmente sin recibirlo. Cuantificar ese efecto causal exigiría un grupo de control (usuarios comparables no impactados), que estos datos (solo envíos registrados) no permiten construir. El matiz afecta a la lectura \emph{absoluta} de las cifras, no a la conclusión relativa: como ``enviar a todos'' y ``priorizar'' se evalúan bajo el mismo supuesto, la comparación entre ambas es justa y el modelo mejora el ROI en todos los escenarios. La estimación de la incrementalidad se deja como línea de trabajo futuro.
+
+\subsection{ROI a escala de producción}
+
+Las cifras anteriores se calculan sobre la muestra balanceada de evaluación (tasa de clic $\approx$24\,\%); comparan, por tanto, \emph{en términos relativos} ``enviar a todos'' frente a ``priorizar''. Para estimar el ROI \emph{absoluto} de producción se repondera cada envío al prior real ($\approx$2\,\%) y se decide con la probabilidad \emph{corregida} (enviar si $p_\text{real}\cdot\text{CPL}\ge$ coste marginal). El resultado (Tabla~\ref{tab:roi_prod}) es ilustrativo.
+
+\begin{table}[htbp]
+\centering
+\caption{ROI a escala de producción (prior real $\approx$2\,\%): campaña de la BD vs.\ modelo}
+\label{tab:roi_prod}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Estructura de coste} & \textbf{ROI ``enviar a todos''} & \textbf{ROI modelo} & \textbf{Emails enviados} \\
+\midrule
+Fijo (1\,\euro/email)         & $-$83\% & \textbf{$-$1\%} & 0,2\% \\
+Variable 20\,\% CPL           & $-$90\% & $-$51\%        & $\approx$0\% \\
+Variable 30\,\% CPL           & $-$93\% & $-$100\%       & $\approx$0\% \\
+Variable 40\,\% CPL           & $-$95\% & ---            & 0\% \\
+Mixto (0,50\,\euro\ + 15\,\% CPL) & $-$91\% & $-$37\%   & $\approx$0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A una tasa de clic real del 2\,\%, enviar a todos pierde dinero en todas las estructuras ($-$83\,\% a $-$95\,\%): con un beneficio esperado por email de $0{,}02\times8{,}5\approx0{,}17$\,\euro\ frente a costes de 1\,\euro\ o más, el canal es estructuralmente deficitario. Ni siquiera el caso más favorable (coste fijo bajo) llega a ser rentable: el modelo lo lleva de $-$83\,\% a apenas el punto de equilibrio ($\approx-1$\,\%), enviando solo al 0,2\,\% más propenso. Bajo coste variable (un porcentaje del CPL) la regla exige $p_\text{real}\ge$ porcentaje (20--40\,\%), inalcanzable cuando el percentil 90 de $p_\text{real}$ es 4,7\,\%; apenas se envía y el canal sigue siendo deficitario. La lectura de negocio es clara: a escala real, el targeting es imprescindible pero no suficiente, y lo que domina la rentabilidad es la economía unitaria (coste por email frente a CPL). Para el objetivo de este trabajo, demostrar la \emph{metodología} de un proyecto orientado al ROI, este resultado es tan valioso como uno positivo: el proceso cuantifica la restricción económica vinculante y evita recomendar una campaña deficitaria, lo que es en sí una decisión de negocio fundamentada. Que el pipeline exponga este hecho en lugar de ocultarlo es, precisamente, parte de su valor.
