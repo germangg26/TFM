@@ -1,56 +1,56 @@
-\chapter{Módulo M0/M1 — Segmentación de clientes}
+\chapter{Module M0/M1 — Customer segmentation}
 \label{cap:segmentacion}
 
-Este capítulo agrupa los dos niveles de segmentación no supervisada de usuarios, presentando para cada uno su método y sus resultados. La segmentación \textbf{demográfica} (M0) asigna un perfil a usuarios nuevos sin historial; la \textbf{comportamental} (M1) agrupa a los usuarios activos por su patrón de interacción.
+This chapter brings together the two levels of unsupervised user segmentation, presenting for each its method and its results. The \textbf{demographic} segmentation (M0) assigns a profile to new users with no history; the \textbf{behavioural} segmentation (M1) groups active users by their interaction pattern.
 
-\section{M0 — Segmentación demográfica (arranque en frío)}
+\section{M0 — Demographic segmentation (cold start)}
 
-\subsection{Método}
+\subsection{Method}
 
-La segmentación demográfica tiene como objetivo asignar un perfil de comportamiento esperado a usuarios nuevos para los que no existe historial de interacciones (\textit{cold start}). Se aplica sobre los 35.405 usuarios del dataset a partir de diez variables de perfil: edad \emph{categorizada} en bandas (\texttt{age\_cat}, las mismas que en M2), género, situación laboral, estado civil, tenencia de vehículo, tamaño del hogar, número de habitaciones, índice de poder adquisitivo (IPA), tipo de municipio y distancia al núcleo urbano más próximo. Las variables categóricas se codificaron ordinalmente de acuerdo con su significado semántico antes de aplicar el escalado estándar.
+Demographic segmentation aims to assign an expected behaviour profile to new users for whom no interaction history exists (cold start). It is applied to the 35.405 users of the dataset using ten profile variables: age \emph{categorised} into bands (\texttt{age\_cat}, the same as in M2), gender, employment status, marital status, vehicle ownership, household size, number of rooms, purchasing power index (IPA), municipality type and distance to the nearest urban centre. The categorical variables were ordinally encoded according to their semantic meaning before applying standard scaling.
 
-\paragraph{Selección del espacio de \textit{embedding}.} Se compararon tres espacios de representación para el clustering posterior mediante el coeficiente de silueta con $k=2$ y $n=5.000$ muestras: (1) el espacio original estandarizado (10 dimensiones); (2) una reducción por PCA hasta explicar el 80\,\% de la varianza (8 componentes); y (3) un \textit{embedding} no lineal mediante autoencoder (4 dimensiones latentes). El autoencoder tiene la arquitectura:
+\paragraph{Selection of the embedding space.} Three representation spaces were compared for the subsequent clustering by means of the silhouette coefficient with $k=2$ and $n=5.000$ samples: (1) the original standardised space (10 dimensions); (2) a PCA reduction down to 80\,\% of the explained variance (8 components); and (3) a non-linear embedding by means of an autoencoder (4 latent dimensions). The autoencoder has the architecture:
 \[
 10 \xrightarrow{\text{Dense}(64)} \xrightarrow{\text{BN}} \xrightarrow{\text{Dense}(32)} \xrightarrow{\text{Dense}(4)} \xrightarrow{\text{Dense}(32)} \xrightarrow{\text{BN}} \xrightarrow{\text{Dense}(64)} \xrightarrow{\text{Dense}(10)}
 \]
-(donde BN denota \textit{batch normalization}) y entrenado con pérdida MSE, optimizador Adam, \textit{batch size} 256, \textit{validation split} 0,1 y parada temprana (paciencia 10 épocas). El autoencoder obtuvo la mayor silueta y fue seleccionado como espacio de clustering (resultados abajo). Se eligió frente a PCA por su capacidad de capturar relaciones \emph{no lineales} entre las variables de perfil, que una reducción lineal no recoge~\cite{hinton2006}. No obstante, conviene matizar que, dado que el espacio demográfico resulta prácticamente un continuo (como muestra más adelante el diagnóstico de estabilidad de $k$), \textbf{PCA habría sido una alternativa más simple y de resultados comparables}; el autoencoder aporta una mejora modesta de cohesión a cambio de mayor complejidad.
+(where BN denotes batch normalisation) and was trained with MSE loss, the Adam optimiser, batch size 256, validation split 0,1 and early stopping (patience 10 epochs). The autoencoder obtained the highest silhouette and was selected as the clustering space (results below). It was chosen over PCA for its capacity to capture \emph{non-linear} relationships between the profile variables, which a linear reduction does not capture~\cite{hinton2006}. Nevertheless, it should be noted that, since the demographic space is practically a continuum (as the $k$ stability diagnostic shows later), \textbf{PCA would have been a simpler alternative with comparable results}; the autoencoder provides a modest improvement in cohesion at the cost of greater complexity.
 
-Conviene aclarar por qué la silueta sí sirve aquí para elegir el \emph{espacio} pero no para elegir el \emph{número de clusters}: para comparar espacios se fija un mismo $k=2$ y se mide cuál separa mejor con ese $k$ común (una comparación \emph{relativa} y justa); en cambio, al barrer $k$ la silueta crece de forma monótona y su máximo no señala un número natural de grupos, por lo que para esa segunda decisión se recurre a la estabilidad (ARI).
+It is worth clarifying why the silhouette is indeed useful here to choose the \emph{space} but not to choose the \emph{number of clusters}: to compare spaces a common $k=2$ is fixed and one measures which separates better with that common $k$ (a \emph{relative} and fair comparison); by contrast, when sweeping $k$ the silhouette grows monotonically and its maximum does not indicate a natural number of groups, so for that second decision one resorts to stability (ARI).
 
-\paragraph{Selección de $k$.} Se evaluaron KMeans para $k \in \{2,\ldots,12\}$ con cuatro métricas: silueta y Calinski-Harabasz (maximizar), Davies-Bouldin (minimizar) e inercia (codo). Como se verá, la silueta y el Calinski-Harabasz crecen de forma \emph{monótona} con $k$ (sin máximo interior), lo que indica que el espacio demográfico es prácticamente un continuo sin un número natural de grupos. Por ello la elección de $k$ se basó en la \textbf{estabilidad} de las asignaciones mediante un diagnóstico por re-muestreo (\textit{Adjusted Rand Index}, ARI~\cite{hubert1985}). Como referencia se ejecutó también HDBSCAN (búsqueda de \texttt{min\_cluster\_size}); su mejor configuración produjo 18 clusters con un 5,5\,\% de usuarios sin asignar (ruido). Se seleccionó KMeans por su \textbf{cobertura total} (0\,\% de ruido) y un número de grupos más manejable.
+\paragraph{Selection of $k$.} KMeans was evaluated for $k \in \{2,\ldots,12\}$ with four metrics: silhouette and Calinski-Harabasz (to maximise), Davies-Bouldin (to minimise) and inertia (elbow). As will be seen, the silhouette and the Calinski-Harabasz grow \emph{monotonically} with $k$ (with no interior maximum), which indicates that the demographic space is practically a continuum with no natural number of groups. The choice of $k$ was therefore based on the \textbf{stability} of the assignments by means of a resampling diagnostic (\textit{Adjusted Rand Index}, ARI~\cite{hubert1985}). As a reference, HDBSCAN was also run (search over \texttt{min\_cluster\_size}); its best configuration produced 18 clusters with 5,5\,\% of users unassigned (noise). KMeans was selected for its \textbf{full coverage} (0\,\% noise) and a more manageable number of groups.
 
-\subsection{Resultados}
+\subsection{Results}
 
-El espacio del autoencoder (4 dimensiones latentes) superó al PCA y al original en cohesión de clustering medida por silueta (0,344 frente a 0,142 y 0,129 en $k=2$). Se seleccionó KMeans con $k=10$ sobre dicho espacio. Los 10 clusters presentan diferencias interpretables: el de mayor tamaño ($n\approx4.900$; 13,8\,\%) agrupa al perfil modal, mientras que los minoritarios ($n\approx1.500$) recogen perfiles de grandes viviendas o de municipios pequeños. La Figura~\ref{fig:umap_m0} muestra la proyección UMAP de los clusters.
+The autoencoder space (4 latent dimensions) outperformed PCA and the original in clustering cohesion measured by silhouette (0,344 versus 0,142 and 0,129 at $k=2$). KMeans with $k=10$ was selected on that space. The 10 clusters present interpretable differences: the largest ($n\approx4.900$; 13,8\,\%) groups the modal profile, whereas the minority ones ($n\approx1.500$) capture profiles of large dwellings or small municipalities. Figure~\ref{fig:umap_m0} shows the UMAP projection of the clusters.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.80\textwidth]{fig_umap_m0}
-\caption{Proyección UMAP bidimensional del espacio latente de 4 dimensiones del autoencoder (M0). Cada punto es un usuario coloreado por su cluster demográfico ($k=10$).}
+\caption{Two-dimensional UMAP projection of the 4-dimensional latent space of the autoencoder (M0). Each point is a user coloured by their demographic cluster ($k=10$).}
 \label{fig:umap_m0}
 \end{figure}
 
-\paragraph{Diagnóstico de estabilidad de $k$.} Las métricas puntuales no fijan un $k$ óptimo: la silueta crece de forma monótona con $k$ (de 0,35 en $k=2$ a 0,46 en $k=12$), señal de que el espacio demográfico es prácticamente un \emph{continuo} sin grupos naturales bien separados; su máximo coincide con el tope del rango de búsqueda y no es un criterio fiable. Para decidir con rigor se evaluó la \textbf{estabilidad} del clustering repitiendo KMeans 15 veces sobre submuestras del 80\,\% y midiendo el ARI entre re-muestreos, que cuantifica cuán consistentes son las asignaciones. La Figura~\ref{fig:kstability} resume el barrido. El ARI se mantiene \textbf{muy alto en todo el rango} ($0{,}96$--$1{,}0$): el clustering es estable para casi cualquier $k$, de modo que la estabilidad por sí sola no señala un único valor ($k=10$ obtiene ARI $0{,}984$, muy próximo al máximo, que está en $k=11$ con $0{,}998$). \textbf{Se adopta $k=10$}: dentro de esa meseta de alta estabilidad es un valor que combina buena cohesión (silueta $\approx0{,}43$), una granularidad interpretable y coherencia con el resto del \textit{pipeline}. Este valor se propaga a los módulos dependientes (propensión M2, arranque en frío de M3 y modelo inverso).
+\paragraph{k stability diagnostic.} The pointwise metrics do not fix an optimal $k$: the silhouette grows monotonically with $k$ (from 0,35 at $k=2$ to 0,46 at $k=12$), a sign that the demographic space is practically a \emph{continuum} with no well-separated natural groups; its maximum coincides with the upper bound of the search range and is not a reliable criterion. To decide rigorously, the \textbf{stability} of the clustering was evaluated by repeating KMeans 15 times on 80\,\% subsamples and measuring the ARI between resamplings, which quantifies how consistent the assignments are. Figure~\ref{fig:kstability} summarises the sweep. The ARI remains \textbf{very high across the whole range} ($0{,}96$--$1{,}0$): the clustering is stable for almost any $k$, so stability alone does not single out a unique value ($k=10$ obtains ARI $0{,}984$, very close to the maximum, which is at $k=11$ with $0{,}998$). \textbf{$k=10$ is adopted}: within that high-stability plateau it is a value that combines good cohesion (silhouette $\approx0{,}43$), an interpretable granularity and coherence with the rest of the pipeline. This value propagates to the dependent modules (propensity M2, cold start of M3 and the inverse model).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{fig_k_stability}
-\caption{Estabilidad del clustering demográfico frente al número de clusters $k$. Izquierda: silueta media por submuestreo. Derecha: ARI entre pares de re-muestreos (1 = clustering idéntico). Se marca $k=10$ (adoptado). El ARI es alto en todo el rango ($0{,}96$--$1{,}0$), por lo que la estabilidad no señala un único $k$ y se elige $k=10$ por cohesión, granularidad y coherencia del \textit{pipeline}.}
+\caption{Stability of the demographic clustering against the number of clusters $k$. Left: mean silhouette by subsampling. Right: ARI between pairs of resamplings (1 = identical clustering). $k=10$ (adopted) is marked. The ARI is high across the whole range ($0{,}96$--$1{,}0$), so stability does not single out a unique $k$ and $k=10$ is chosen for cohesion, granularity and coherence of the pipeline.}
 \label{fig:kstability}
 \end{figure}
 
-\section{M1 — Segmentación comportamental}
+\section{M1 — Behavioural segmentation}
 
-\subsection{Método}
+\subsection{Method}
 
-La segmentación comportamental (M1) aplica el mismo marco sobre un espacio de características que combina el historial de interacciones con los atributos de usuario. Se construyen 46 variables en tres bloques:
+The behavioural segmentation (M1) applies the same framework to a feature space that combines the interaction history with the user attributes. 46 variables are built in three blocks:
 \begin{itemize}
-    \item \textbf{Actividad} (7 variables): número de eventos, clics, aperturas, productos, sectores, recencia y tasa de clic. Las variables de conteo se transforman con $\log(1+x)$ para reducir el sesgo de la distribución.
-    \item \textbf{Sector} (18 variables): frecuencia de eventos y tasa de clic por sector (9 sectores).
-    \item \textbf{Producto} (21 variables): frecuencia de eventos por categoría de producto (top 20 + \textit{other}).
+    \item \textbf{Activity} (7 variables): number of events, clicks, opens, products, sectors, recency and click rate. The count variables are transformed with $\log(1+x)$ to reduce the skewness of the distribution.
+    \item \textbf{Sector} (18 variables): event frequency and click rate per sector (9 sectors).
+    \item \textbf{Product} (21 variables): event frequency per product category (top 20 + \textit{other}).
 \end{itemize}
-La reducción dimensional se realizó con PCA fijando 26 componentes (varianza explicada $\geq 90$\,\%). Sobre el espacio PCA se evaluaron KMeans ($k \in \{4,\ldots,12\}$), GMM ($k \in \{3,\ldots,9\}$) y HDBSCAN, con el requisito adicional de que ningún cluster supere el 60\,\% de la base.
+The dimensionality reduction was carried out with PCA, fixing 26 components (explained variance $\geq 90$\,\%). On the PCA space, KMeans ($k \in \{4,\ldots,12\}$), GMM ($k \in \{3,\ldots,9\}$) and HDBSCAN were evaluated, with the additional requirement that no cluster exceed 60\,\% of the base.
 
-\subsection{Resultados}
+\subsection{Results}
 
-KMeans con $k=12$ fue seleccionado (silueta 0,347) frente a GMM ($k=9$, silueta 0,249) y HDBSCAN (0,210; excluido por 46\,\% de \textit{outliers}). La distribución de los segmentos refleja la asimetría del dataset: el segmento 3 agrupa al 39,1\,\% de los usuarios ($n=13.858$) con \textit{click rate} de 0,01 (una única apertura sin clic en seguros); en el extremo opuesto, los segmentos 1 y 2 concentran usuarios de alta actividad (\textit{click rates} 0,95 y 0,99) pero solo el 8,3\,\% de la base. Esta segmentación es la que emplea el recomendador (Capítulo~\ref{cap:recomendador}).
+KMeans with $k=12$ was selected (silhouette 0,347) over GMM ($k=9$, silhouette 0,249) and HDBSCAN (0,210; excluded due to 46\,\% of \textit{outliers}). The distribution of the segments reflects the skewness of the dataset: segment 3 groups 39,1\,\% of the users ($n=13.858$) with a \textit{click rate} of 0,01 (a single open with no click on insurance); at the opposite extreme, segments 1 and 2 concentrate high-activity users (\textit{click rates} 0,95 and 0,99) but only 8,3\,\% of the base. This segmentation is the one used by the recommender (Chapter~\ref{cap:recomendador}).

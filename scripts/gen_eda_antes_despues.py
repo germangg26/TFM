@@ -81,28 +81,28 @@ for s in top:
 # ── 4) Figura comparativa (2x2) ──
 fig, ax = plt.subplots(2, 2, figsize=(12, 8))
 # (a) Edad
-ax[0,0].hist(raw_u["age"], bins=range(18,101,5), density=True, alpha=0.55, color=GRIS, label="Antes (bruto)")
-ax[0,0].hist(users["age"].dropna(), bins=range(18,101,5), density=True, alpha=0.55, color=ROJO, label="Después")
-ax[0,0].set_title("Edad (densidad, por usuario)"); ax[0,0].set_xlabel("años"); ax[0,0].legend()
+ax[0,0].hist(raw_u["age"], bins=range(18,101,5), density=True, alpha=0.55, color=GRIS, label="Before (raw)")
+ax[0,0].hist(users["age"].dropna(), bins=range(18,101,5), density=True, alpha=0.55, color=ROJO, label="After")
+ax[0,0].set_title("Age (density, per user)"); ax[0,0].set_xlabel("years"); ax[0,0].legend()
 # (b) Género
 g_antes = [100*(raw_u["gender"]=="H").mean(), 100*(raw_u["gender"]=="M").mean()]
 g_desp  = [100*(users["gender"]=="H").mean(), 100*(users["gender"]=="M").mean()]
 xx = np.arange(2); w=0.38
-ax[0,1].bar(xx-w/2, g_antes, w, color=GRIS, label="Antes"); ax[0,1].bar(xx+w/2, g_desp, w, color=ROJO, label="Después")
-ax[0,1].set_xticks(xx); ax[0,1].set_xticklabels(["Hombre","Mujer"]); ax[0,1].set_ylabel("% usuarios")
-ax[0,1].set_title("Género (por usuario)"); ax[0,1].legend()
+ax[0,1].bar(xx-w/2, g_antes, w, color=GRIS, label="Before"); ax[0,1].bar(xx+w/2, g_desp, w, color=ROJO, label="After")
+ax[0,1].set_xticks(xx); ax[0,1].set_xticklabels(["Male","Female"]); ax[0,1].set_ylabel("% of users")
+ax[0,1].set_title("Gender (per user)"); ax[0,1].legend()
 # (c) Mezcla por sector (top 6)
 xs = np.arange(len(top))
-ax[1,0].bar(xs-w/2, [sec_antes.get(s,0) for s in top], w, color=GRIS, label="Antes")
-ax[1,0].bar(xs+w/2, [sec_desp.get(s,0) for s in top], w, color=ROJO, label="Después")
+ax[1,0].bar(xs-w/2, [sec_antes.get(s,0) for s in top], w, color=GRIS, label="Before")
+ax[1,0].bar(xs+w/2, [sec_desp.get(s,0) for s in top], w, color=ROJO, label="After")
 ax[1,0].set_xticks(xs); ax[1,0].set_xticklabels(top, rotation=30, ha="right", fontsize=8)
-ax[1,0].set_ylabel("% de eventos"); ax[1,0].set_title("Mezcla por sector (top 6)"); ax[1,0].legend()
+ax[1,0].set_ylabel("% of events"); ax[1,0].set_title("Sector mix (top 6)"); ax[1,0].legend()
 # (d) Respuesta
 r_antes=[100*(1-raw["click"].mean()), 100*raw["click"].mean()]
 r_desp =[100*(1-ev["click"].mean()), 100*ev["click"].mean()]
-ax[1,1].bar(xx-w/2, r_antes, w, color=GRIS, label="Antes"); ax[1,1].bar(xx+w/2, r_desp, w, color=ROJO, label="Después")
-ax[1,1].set_xticks(xx); ax[1,1].set_xticklabels(["Apertura","Clic"]); ax[1,1].set_ylabel("% de eventos")
-ax[1,1].set_title("Variable respuesta"); ax[1,1].legend()
-fig.suptitle("Variables observadas: antes (bruto) vs después del remuestreo balanceado", fontsize=13)
+ax[1,1].bar(xx-w/2, r_antes, w, color=GRIS, label="Before"); ax[1,1].bar(xx+w/2, r_desp, w, color=ROJO, label="After")
+ax[1,1].set_xticks(xx); ax[1,1].set_xticklabels(["Open","Click"]); ax[1,1].set_ylabel("% of events")
+ax[1,1].set_title("Response variable"); ax[1,1].legend()
+fig.suptitle("Observed variables: before (raw) vs after balanced resampling", fontsize=13)
 plt.tight_layout(); plt.savefig(FIG/"fig_eda_antes_despues.pdf", bbox_inches="tight"); plt.close()
 print("\nfig_eda_antes_despues.pdf generada")

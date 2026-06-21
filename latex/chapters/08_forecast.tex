@@ -1,41 +1,41 @@
-\chapter{Módulo M4 — Previsión temporal}
+\chapter{Module M4 — Temporal forecasting}
 \label{cap:forecast}
 
-\section{Método}
+\section{Method}
 
-El módulo M4 aplica Prophet \cite{taylor2018forecasting} sobre la serie temporal de clics semanales agregados. El dataset cubre 52 semanas, pero las primeras 30 presentan actividad prácticamente nula (0--50 clics), ya que la campaña no había arrancado. Incluir ese período inactivo en el entrenamiento induce al modelo a aprender una tendencia descendente hacia cero. Para evitarlo, el modelo se entrena exclusivamente sobre el \textbf{período activo}: las 22 semanas a partir de la primera con al menos 50 clics (semana del 28 de julio de 2025), con un rango de 108 a 1.759 clics.
+Module M4 applies Prophet \cite{taylor2018forecasting} to the time series of weekly aggregated clicks. The dataset spans 52 weeks, but the first 30 show virtually no activity (0--50 clicks), as the campaign had not yet started. Including this inactive period in training leads the model to learn a downward trend towards zero. To avoid this, the model is trained exclusively on the \textbf{active period}: the 22 weeks from the first one with at least 50 clicks (the week of 28 July 2025), with a range of 108 to 1.759 clicks.
 
-Dado que los datos están agregados por semana (no por día), la estacionalidad semanal de Prophet no aporta señal y se desactiva. La estacionalidad anual tampoco es estimable con menos de seis meses de actividad y se desactiva igualmente. El modelo queda configurado con tendencia lineal, \texttt{changepoint\_prior\_scale}\,=\,0{,}5 para capturar el pico de octubre y la posterior caída, y \texttt{n\_changepoints}\,=\,10. El intervalo de confianza es del 90\,\%. Para la evaluación se emplea primero un hold-out de las últimas 4 semanas y, sobre todo, un \textit{backtest} rolling que se contrasta con baselines ingenuos mediante el test de Diebold-Mariano (Sección~\ref{sec:tests}).
+Given that the data are aggregated by week (not by day), Prophet's weekly seasonality provides no signal and is disabled. Annual seasonality is likewise not estimable with fewer than six months of activity and is also disabled. The model is configured with a linear trend, \texttt{changepoint\_prior\_scale}\,=\,0{,}5 to capture the October peak and the subsequent drop, and \texttt{n\_changepoints}\,=\,10. The confidence interval is 90\,\%. For evaluation we first use a hold-out of the last 4 weeks and, above all, a rolling backtest that is compared against naïve baselines by means of the Diebold-Mariano test (Section~\ref{sec:tests}).
 
-\section{Resultados}
+\section{Results}
 
-Sobre el hold-out de las últimas 4 semanas, Prophet obtiene MAE\,=\,447 clics/semana, RMSE\,=\,507,7 y MAPE\,=\,73,3\,\%, y predice 259--452 clics/semana para enero--febrero 2026 (Figura~\ref{fig:forecast}). El MAPE está condicionado por un pico atípico en la primera semana del hold-out; las otras tres semanas presentan errores del 2--29\,\%. La amplitud de los intervalos de confianza refleja la incertidumbre de un histórico activo de solo 22 semanas.
+On the hold-out of the last 4 weeks, Prophet obtains MAE\,=\,447 clicks/week, RMSE\,=\,507,7 and MAPE\,=\,73,3\,\%, and predicts 259--452 clicks/week for January--February 2026 (Figure~\ref{fig:forecast}). The MAPE is conditioned by an atypical peak in the first week of the hold-out; the other three weeks show errors of 2--29\,\%. The width of the confidence intervals reflects the uncertainty of an active historical record of only 22 weeks.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\textwidth]{fig_forecast}
-\caption{Forecast de clics semanales con Prophet (M4). Azul: clics reales. Rojo discontinuo: ajuste. Verde: predicción a 8 semanas. La banda sombreada es el intervalo de confianza al 90\%.}
+\caption{Forecast of weekly clicks with Prophet (M4). Blue: actual clicks. Dashed red: fit. Green: prediction over 8 weeks. The shaded band is the 90\% confidence interval.}
 \label{fig:forecast}
 \end{figure}
 
-\subsection{Re-auditoría con baselines}
+\subsection{Re-audit with baselines}
 
-El hold-out de 4 semanas es demasiado corto para una comparación fiable. Se realizó un \textbf{backtest
-rolling de 1 paso} (14 orígenes): para cada semana se entrena con todo lo anterior y se predice la
-siguiente, comparando Prophet con dos baselines ingenuos (\emph{naïve}: la próxima semana = la última;
-y media móvil de 3). La Tabla~\ref{tab:m4_backtest} y la Figura~\ref{fig:m4_backtest} muestran el resultado.
+The 4-week hold-out is too short for a reliable comparison. A \textbf{one-step rolling
+backtest} (14 origins) was carried out: for each week the model is trained on everything prior and predicts the
+following one, comparing Prophet with two naïve baselines (\emph{naïve}: next week = the last one;
+and moving average of 3). Table~\ref{tab:m4_backtest} and Figure~\ref{fig:m4_backtest} show the result.
 
 \begin{table}[htbp]
 \centering
-\caption{M4: error del backtest rolling 1-paso (14 orígenes)}
+\caption{M4: error of the one-step rolling backtest (14 origins)}
 \label{tab:m4_backtest}
 \begin{tabular}{lcc}
 \toprule
-\textbf{Modelo} & \textbf{MAE} & \textbf{RMSE} \\
+\textbf{Model} & \textbf{MAE} & \textbf{RMSE} \\
 \midrule
 Prophet        & 749,7 & 874,7 \\
 \textbf{Naïve} & \textbf{502,3} & \textbf{604,6} \\
-Media móvil 3  & 583,7 & 703,7 \\
+Moving average 3  & 583,7 & 703,7 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -43,15 +43,15 @@ Media móvil 3  & 583,7 & 703,7 \\
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.62\textwidth]{fig_m4_backtest}
-\caption{Error medio absoluto (MAE) del backtest rolling 1-paso de M4. Los baselines ingenuos baten a Prophet.}
+\caption{Mean absolute error (MAE) of the M4 one-step rolling backtest. The naïve baselines beat Prophet.}
 \label{fig:m4_backtest}
 \end{figure}
 
-El resultado es claro en el error puntual: en esta serie corta y volátil, \textbf{los baselines ingenuos baten
-a Prophet} (MAE 750 frente a 502 del \emph{naïve}). Ahora bien, con solo 14 orígenes el test de
-Diebold-Mariano requiere la \textbf{corrección de Harvey-Leybourne-Newbold} (factor de muestra pequeña y $t$ de
-Student con $n-1$ grados de libertad); aplicada, la diferencia resulta \textbf{marginal} (vs.\ \emph{naïve}
-$p=0{,}059$; vs.\ media móvil $p=0{,}073$): no alcanza la significación al 5\,\%, lo cual es coherente con un
-histórico tan corto. La lectura honesta es que el simple ``la próxima semana será como la última'' iguala o
-supera a Prophet ---cuya flexibilidad de tendencia sobreajusta con tan pocos datos---, aunque la evidencia es
-\emph{sugestiva} más que concluyente por la escasez de puntos.
+The result is clear in terms of point error: on this short and volatile series, \textbf{the naïve baselines beat
+Prophet} (MAE 750 against 502 for the \emph{naïve}). That said, with only 14 origins the Diebold-Mariano
+test requires the \textbf{Harvey-Leybourne-Newbold correction} (small-sample factor and Student's $t$
+with $n-1$ degrees of freedom); once applied, the difference turns out to be \textbf{marginal} (vs.\ \emph{naïve}
+$p=0{,}059$; vs.\ moving average $p=0{,}073$): it does not reach significance at 5\,\%, which is consistent with such a short
+historical record. The honest reading is that the simple ``next week will be like the last one'' matches or
+surpasses Prophet ---whose trend flexibility overfits with so few data---, although the evidence is
+\emph{suggestive} rather than conclusive owing to the scarcity of points.

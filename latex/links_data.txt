@@ -1,0 +1,27 @@
+https://www.ine.es/jaxiT3/Datos.htm?t=65349 -> Tasa de empleo y paro  por provincia (tasas)
+https://www.ine.es/jaxiT3/Datos.htm?t=65356 -> personas estudiantes en miles de personas
+https://ine.es/jaxiT3/Datos.htm?t=54562 -> numero medio de personas por hogar provincia
+https://www.ine.es/dynt3/inebase/es/index.htm?padre=9810&capsel=9813 -> numero de hogares según tipo del hogar prov y luego numero de ocupantes por  municipio
+https://www.ine.es/jaxiT3/Datos.htm?t=76288 -> estado civil por provincia
+https://www.ine.es/jaxiT3/Tabla.htm?t=66600&L=0 -> nivel de estudios por provincia
+https://www.ine.es/jaxi/Datos.htm?path=/t20/p274/serie/prov/p02/l0/&file=02010.px -> tipología de vivienda por provincia
+https://www.ine.es/jaxi/Datos.htm?tpx=59531-> consumo eléctrico por provincia
+https://www.dgt.es/menusecundario/dgt-en-cifras/dgt-en-cifras-resultados/dgt-en-cifras-detalle/Datos-municipales-informacion-general-2024/ -> datos de vehículos se utilizar el de municipios
+https://www.antena3.com/noticias/economia/municipio-espana-mas-coches-habitante-104-persona_20250811689a483751d2460c807748cd.html -> NOTICIAS DE QUE HAY MUCHOS COCHES EN UN MUNICIPIO
+----------------------------------------------------------------------------------------------------------------------------
+https://opendata-ajuntament.barcelona.cat/data/es/dataset/pad_mdbas_niv-educa-esta_sexe -> nivel de estudio barcelona
+https://datos.gob.es/es/catalogo/l01080193-consumo-de-electricidad-mwh-por-codigo-postal-sector-economico-y-tramo-horario -> consumo eléctrico Barcelona
+https://portaldades.ajuntament.barcelona.cat/es/estad%C3%ADsticas/5pcr60zdqe -> tamaño hogar barecelona 
+https://datos.gob.es/es/catalogo/l01080193-tipologia-del-parque-de-vehiculos-de-la-ciudad-de-barcelona -> vehículos BCN
+ESTADO CIVIL NO
+Tipologia de VIVIENDA NO
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+https://datos.gob.es/es/catalogo/l01280796-panel-de-indicadores-de-distritos-y-barrios-de-madrid-estudio-sociodemografico -> nivel de estudio Madrid
+https://servpub.madrid.es/CSEBD_WBINTER/seleccionSerie.html?numSerie=0302010700012 <- Nivel de estudios MADRID
+
+CAPITLO  7, donde sacas los vehículos de Madrid hay una variable que es el nombre de vehículos/hogar
+
+https://datos.madrid.es/dataset/300430-0-consumo-energia-edificios/resource/300430-0-consumo-energia-edificios-csv -> consumo eléctrico MADRID
+
+https://www.madrid.es/portales/munimadrid/es/Inicio/El-Ayuntamiento/Estadistica/Areas-de-informacion-estadistica/Edificacion-y-vivienda/Censo-de-edificios-y-viviendas/Censo-de-Viviendas-2021/?vgnextfmt=default&vgnextoid=93e40bbcb0b5e810VgnVCM1000001d4a900aRCRD&vgnextchannel=f93124e8951ef310VgnVCM1000000b205a0aRCRD -> superficie hogar y numero de ocupantes por hogar (mismo Excel)

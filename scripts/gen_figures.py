@@ -52,15 +52,15 @@ ax.plot(clicks_weekly['week'], clicks_weekly['clicks'],
 
 split = pd.Timestamp('2025-07-28')
 ax.axvspan(clicks_weekly['week'].min(), split,
-           alpha=0.08, color=NEUTRO, label='Período inactivo (<50 clics/semana)')
+           alpha=0.08, color=NEUTRO, label='Inactive period (<50 clicks/week)')
 ax.axvspan(split, clicks_weekly['week'].max(),
-           alpha=0.08, color=AZUL, label='Período activo')
+           alpha=0.08, color=AZUL, label='Active period')
 ax.axvline(split, color=NEUTRO, lw=1, ls='--')
 
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%b\n%Y'))
 ax.xaxis.set_major_locator(mdates.MonthLocator())
-ax.set_ylabel('Clics por semana')
-ax.set_title('Evolución semanal del volumen de clics (ene 2025 – ene 2026)')
+ax.set_ylabel('Clicks per week')
+ax.set_title('Weekly evolution of click volume (Jan 2025 – Jan 2026)')
 ax.legend(loc='upper left')
 ax.set_xlim(clicks_weekly['week'].min(), clicks_weekly['week'].max())
 ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{int(x):,}'))
@@ -84,27 +84,27 @@ active = clicks_weekly[clicks_weekly['clicks'] >= 50].copy()
 fig, ax = plt.subplots(figsize=(10, 4))
 ax.plot(active['week'], active['clicks'],
         color=AZUL, lw=1.8, marker='o', ms=4,
-        label='Clics reales (período activo)', zorder=4)
+        label='Actual clicks (active period)', zorder=4)
 ax.plot(hist['week'], hist['clicks_forecast'],
-        color=ROJO, lw=1.5, ls='--', label='Ajuste del modelo', zorder=3)
+        color=ROJO, lw=1.5, ls='--', label='Model fit', zorder=3)
 ax.fill_between(hist['week'],
                 hist['clicks_lower_95'].clip(lower=0),
                 hist['clicks_upper_95'],
                 alpha=0.1, color=ROJO)
 ax.plot(fut['week'], fut['clicks_forecast'],
         color=VERDE, lw=2, marker='D', ms=4.5,
-        label='Forecast +8 semanas', zorder=4)
+        label='Forecast +8 weeks', zorder=4)
 ax.fill_between(fut['week'],
                 fut['clicks_lower_95'].clip(lower=0),
                 fut['clicks_upper_95'],
-                alpha=0.18, color=VERDE, label='IC 90 %')
+                alpha=0.18, color=VERDE, label='90% CI')
 cut = hist['week'].max()
-ax.axvline(cut, color=NEUTRO, lw=1, ls=':', label='Inicio del horizonte')
+ax.axvline(cut, color=NEUTRO, lw=1, ls=':', label='Horizon start')
 
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%b\n%Y'))
 ax.xaxis.set_major_locator(mdates.MonthLocator())
-ax.set_ylabel('Clics por semana')
-ax.set_title('Forecast de clics semanales — Prophet (período activo + 8 semanas)')
+ax.set_ylabel('Clicks per week')
+ax.set_title('Weekly click forecast — Prophet (active period + 8 weeks)')
 ax.legend(loc='upper right', ncol=2)
 ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{int(max(x,0)):,}'))
 plt.tight_layout()
@@ -186,8 +186,8 @@ try:
         ax.scatter(emb[mask, 0], emb[mask, 1],
                    s=3, alpha=0.4, color=palette[k], label=f'C{k}', rasterized=True)
     ax.set_xticks([]); ax.set_yticks([])
-    ax.set_title('Proyección UMAP de los 10 clusters demográficos (M0)\n'
-                 f'n = {N:,} usuarios, 4D latente → 2D UMAP')
+    ax.set_title('UMAP projection of the 10 demographic clusters (M0)\n'
+                 f'n = {N:,} users, 4D latent → 2D UMAP')
     handles, labels_leg = ax.get_legend_handles_labels()
     ax.legend(handles, labels_leg, title='Cluster', loc='best',
               markerscale=3, fontsize=8, ncol=2,

@@ -3,7 +3,7 @@
 % ── Codificación y lengua ────────────────────────────────────────────────────
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage[spanish, es-tabla]{babel}
+\usepackage[british]{babel}
 
 % ── Tipografía ───────────────────────────────────────────────────────────────
 \usepackage{palatino}
@@ -65,9 +65,10 @@
 \setlength{\emergencystretch}{3em}  % reduce los overfull \hbox cosméticos
 \pagestyle{fancy}
 \fancyhf{}
-% Izquierda: nombre del máster | Derecha: capítulo
-\fancyhead[L]{\footnotesize\textsc{MSc. Modelling for Science and Engineering}}
-\fancyhead[R]{\footnotesize\textsc{\leftmark}}
+% Páginas pares: nombre del máster (izq.); impares: capítulo (der.).
+% Se separan por paridad de página para que los dos textos nunca coincidan ni se solapen.
+\fancyhead[LE]{\footnotesize\textsc{MSc. Modelling for Science and Engineering}}
+\fancyhead[RO]{\footnotesize\textsc{\leftmark}}
 \renewcommand{\chaptermark}[1]{\markboth{#1}{}}
 \renewcommand{\headrulewidth}{0.4pt}
 % Abajo izquierda: número de página
@@ -88,7 +89,7 @@
 \newtcolorbox{hallazgo}{
   colback=navyblue!4, colframe=navyblue!55, boxrule=0.6pt, arc=2pt,
   left=8pt, right=8pt, top=6pt, bottom=6pt,
-  fonttitle=\bfseries\small, title={Hallazgo clave}
+  fonttitle=\bfseries\small, title={Key finding}
 }
 
 % ── Bibliografía ─────────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@
 \addbibresource{bibliography.bib}
 
 % ── Metadatos ────────────────────────────────────────────────────────────────
-\title{Aprendizaje automático para email marketing: propensión, recomendación y previsión con validación rigurosa}
+\title{Machine learning for email marketing: propensity, recommendation and forecasting with rigorous validation}
 \author{Germán}
 \date{2026}
 
@@ -113,19 +114,19 @@
 \listoftables
 
 \mainmatter
-\part{Marco y datos}
+\part{Framework and data}
 \input{chapters/01_introduccion}
 \input{chapters/02_estado_arte}
 \input{chapters/03_datos}
 \input{chapters/04_sistema_evaluacion}
 
-\part{Modelos}
+\part{Models}
 \input{chapters/05_segmentacion}
 \input{chapters/06_propension}
 \input{chapters/07_recomendador}
 \input{chapters/08_forecast}
 
-\part{Aplicación y cierre}
+\part{Application and closing}
 \input{chapters/09_negocio}
 \input{chapters/10_conclusiones}
 
@@ -133,6 +134,6 @@
 \input{chapters/11_apendice_reproducibilidad}
 
 \backmatter
-\printbibliography[heading=bibintoc, title={Bibliografía}]
+\printbibliography[heading=bibintoc, title={Bibliography}]
 
 \end{document}

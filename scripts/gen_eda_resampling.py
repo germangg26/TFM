@@ -39,29 +39,29 @@ def pct(n, tot):
 fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
 
 # Panel izquierdo: ANTES (escala log por el fuerte desbalanceo)
-b0 = axes[0].bar(["No-clic", "Clic"], [aperturas_antes, clics_antes],
+b0 = axes[0].bar(["No click", "Click"], [aperturas_antes, clics_antes],
                  color=[GRIS, ROJO], edgecolor="white", width=0.6)
 axes[0].set_yscale("log")
 for b, n, t in zip(b0, [aperturas_antes, clics_antes], [aperturas_antes, clics_antes]):
     axes[0].text(b.get_x() + b.get_width()/2, n * 1.15,
                  f"{n:,}\n({pct(t, total_antes):.1f}\\%)".replace(",", "."),
                  ha="center", fontsize=9)
-axes[0].set_ylabel("Nº de eventos (escala log)")
-axes[0].set_title(f"ANTES del remuestreo (datos brutos)\\n{total_antes:,} eventos · clic = {pct(clics_antes, total_antes):.1f}\\%".replace(",", "."))
+axes[0].set_ylabel("No. of events (log scale)")
+axes[0].set_title(f"BEFORE resampling (raw data)\\n{total_antes:,} events · click = {pct(clics_antes, total_antes):.1f}\\%".replace(",", "."))
 axes[0].set_ylim(1e4, 1e7)
 
 # Panel derecho: DESPUÉS (escala lineal)
-b1 = axes[1].bar(["No-clic", "Clic"], [aperturas_desp, clics_desp],
+b1 = axes[1].bar(["No click", "Click"], [aperturas_desp, clics_desp],
                  color=[GRIS, ROJO], edgecolor="white", width=0.6)
 for b, n in zip(b1, [aperturas_desp, clics_desp]):
     axes[1].text(b.get_x() + b.get_width()/2, n + 600,
                  f"{n:,}\n({pct(n, total_desp):.1f}\\%)".replace(",", "."),
                  ha="center", fontsize=9)
-axes[1].set_ylabel("Nº de eventos")
-axes[1].set_title(f"DESPUÉS (muestreo 1:1 + limpieza)\\n{total_desp:,} eventos · clic = {pct(clics_desp, total_desp):.1f}\\%".replace(",", "."))
+axes[1].set_ylabel("No. of events")
+axes[1].set_title(f"AFTER (1:1 sampling + cleaning)\\n{total_desp:,} events · click = {pct(clics_desp, total_desp):.1f}\\%".replace(",", "."))
 axes[1].set_ylim(0, total_desp * 0.95)
 
-fig.suptitle("Variable respuesta: efecto del muestreo balanceado sobre el desbalanceo", fontsize=12)
+fig.suptitle("Response variable: effect of balanced sampling on class imbalance", fontsize=12)
 plt.tight_layout()
 plt.savefig(FIG / "fig_eda_resampling.pdf", bbox_inches="tight")
 plt.close()

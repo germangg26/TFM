@@ -1,79 +1,79 @@
-\chapter{Diseño del sistema y marco de evaluación}
+\chapter{System design and evaluation framework}
 \label{cap:evaluacion}
 
-Este capítulo presenta una visión general del pipeline y, sobre todo, el marco de evaluación común a todos los módulos: qué métricas se usan y cómo interpretarlas, cómo se valida sin fuga de datos y qué pruebas estadísticas respaldan cada comparación. Reunir estas definiciones aquí evita repetirlas en cada módulo y permite que los capítulos siguientes se centren en sus resultados.
+This chapter presents an overview of the pipeline and, above all, the evaluation framework common to all modules: which metrics are used and how to interpret them, how validation is carried out without data leakage, and which statistical tests support each comparison. Gathering these definitions here avoids repeating them in every module and allows the following chapters to focus on their results.
 
-\section{Visión general del pipeline}
+\section{Pipeline overview}
 
-El sistema se organiza en un pipeline secuencial que transforma los datos brutos de campaña en predicciones y recomendaciones accionables, agrupado en cuatro bloques funcionales:
+The system is organised as a sequential pipeline that transforms raw campaign data into actionable predictions and recommendations, grouped into four functional blocks:
 \begin{itemize}
-    \item \emph{Bloque I — Preparación de datos} (\texttt{01\_clean}, \texttt{02\_geo}, \texttt{03\_users}): limpieza, construcción de tablas dimensionales y enriquecimiento demográfico (Capítulo~\ref{cap:datos}).
-    \item \emph{Bloque II — Segmentación} (\texttt{05\_demo\_segmentation}, \texttt{06\_segmentation}): dos niveles de agrupación de usuarios, M0 (demográfica) y M1 (comportamental) (Capítulo~\ref{cap:segmentacion}).
-    \item \emph{Bloque III — Modelado predictivo} (\texttt{07\_propensity}, \texttt{08\_recommender}): propensión al clic (M2, Capítulo~\ref{cap:propension}) y recomendador por cluster (M3, Capítulo~\ref{cap:recomendador}).
-    \item \emph{Bloque IV — Previsión temporal} (\texttt{09\_forecast}): predicción del volumen semanal de clics (M4, Capítulo~\ref{cap:forecast}).
+    \item \emph{Block I — Data preparation} (\texttt{01\_clean}, \texttt{02\_geo}, \texttt{03\_users}): cleaning, construction of dimensional tables and demographic enrichment (Chapter~\ref{cap:datos}).
+    \item \emph{Block II — Segmentation} (\texttt{05\_demo\_segmentation}, \texttt{06\_segmentation}): two levels of user grouping, M0 (demographic) and M1 (behavioural) (Chapter~\ref{cap:segmentacion}).
+    \item \emph{Block III — Predictive modelling} (\texttt{07\_propensity}, \texttt{08\_recommender}): click propensity (M2, Chapter~\ref{cap:propension}) and cluster-based recommender (M3, Chapter~\ref{cap:recomendador}).
+    \item \emph{Block IV — Temporal forecasting} (\texttt{09\_forecast}): prediction of the weekly click volume (M4, Chapter~\ref{cap:forecast}).
 \end{itemize}
-Como análisis complementarios se incluyen un diagnóstico de estabilidad del número de clusters (\texttt{05b\_k\_stability}), un modelo inverso producto\,$\rightarrow$\,perfil (\texttt{10\_inverse\_profile}) y un ejemplo de despliegue con análisis de retorno (Capítulo~\ref{cap:negocio}). Cada capítulo de módulo presenta de forma conjunta su \emph{método} y sus \emph{resultados}, para facilitar la lectura.
+Complementary analyses include a stability diagnostic for the number of clusters (\texttt{05b\_k\_stability}), an inverse product\,$\rightarrow$\,profile model (\texttt{10\_inverse\_profile}) and a deployment example with a return-on-investment analysis (Chapter~\ref{cap:negocio}). Each module chapter presents its \emph{method} and its \emph{results} together, to ease reading.
 
-\section{Métricas de evaluación}
+\section{Evaluation metrics}
 \label{sec:metricas}
 
-Cada tipo de problema exige métricas distintas. A continuación se definen las empleadas y, lo más importante, cómo interpretarlas: qué valor es bueno y cuál es el de referencia o ``azar''.
+Each type of problem requires different metrics. The metrics used are defined below and, most importantly, how to interpret them: which value is good and which is the reference or ``chance'' value.
 
-\subsection{Propensión al clic (clasificación binaria)}
+\subsection{Click propensity (binary classification)}
 
-El problema es de clases desbalanceadas (pocos clics frente a muchas no-interacciones), lo que condiciona la elección de métricas: la \emph{exactitud} (\textit{accuracy}) engaña, porque un modelo que prediga ``nunca clic'' acertaría la mayoría de las veces sin ser útil.
+The problem involves imbalanced classes (few clicks against many non-interactions), which conditions the choice of metrics: accuracy is misleading, because a model predicting ``never click'' would be right most of the time without being useful.
 
 \begin{itemize}
-    \item \textbf{PR-AUC} (área bajo la curva \textit{precision-recall}), métrica principal. Resume cómo de bien el modelo identifica la clase rara (el clic) a distintos umbrales. Va de 0 a 1; mayor es mejor. Su valor de \emph{referencia} (lo que daría el azar) no es 0,5 sino la prevalencia de positivos: aquí $\approx0{,}238$. Por eso un PR-AUC de 0,40 sobre una prevalencia de 0,24 sí indica señal real. Se prefiere a la AUC-ROC en desbalanceo porque se centra en la clase positiva~\cite{davisgoadrich2006,saito2015}.
-    \item \textbf{AUC-ROC} (área bajo la curva ROC)~\cite{fawcett2006}, métrica de apoyo. Mide la capacidad de \emph{ordenar} un positivo por encima de un negativo elegidos al azar. Va de 0 a 1: 0,5 es azar, 1 es perfecto. Orientativamente, $\approx0{,}7$ es modesto, $0{,}8$ bueno y $\geq0{,}9$ excelente. En desbalanceo tiende a ser \emph{optimista}, de ahí que la principal sea PR-AUC.
-    \item \textbf{Brier score}~\cite{brier1950}, calidad de la \emph{calibración}. Mide si las probabilidades son \emph{realistas} (no solo si el orden es correcto): es el error cuadrático medio entre la probabilidad predicha y el resultado real (0/1). Menor es mejor (0 = perfecto).
-    \item \textbf{F1, MCC y \textit{Balanced Accuracy}}, calidad de la decisión binaria a un umbral fijo (aquí, la prevalencia 0,238). El F1 es la media armónica de precisión y exhaustividad (0 a 1). El MCC (coeficiente de correlación de Matthews~\cite{matthews1975}) resume la matriz de confusión completa y es robusto al desbalanceo: va de $-1$ a $1$, con 0 = azar. La \textit{Balanced Accuracy} promedia el acierto en cada clase por separado (0,5 = azar).
+    \item \textbf{PR-AUC} (area under the precision-recall curve), the main metric. It summarises how well the model identifies the rare class (the click) across different thresholds. It ranges from 0 to 1; higher is better. Its \emph{reference} value (what chance would yield) is not 0,5 but the prevalence of positives: here $\approx0{,}238$. This is why a PR-AUC of 0,40 over a prevalence of 0,24 does indicate genuine signal. It is preferred over AUC-ROC under imbalance because it focuses on the positive class~\cite{davisgoadrich2006,saito2015}.
+    \item \textbf{AUC-ROC} (area under the ROC curve)~\cite{fawcett2006}, a supporting metric. It measures the ability to \emph{rank} a randomly chosen positive above a randomly chosen negative. It ranges from 0 to 1: 0,5 is chance, 1 is perfect. As a rough guide, $\approx0{,}7$ is modest, $0{,}8$ good and $\geq0{,}9$ excellent. Under imbalance it tends to be \emph{optimistic}, which is why the main metric is PR-AUC.
+    \item \textbf{Brier score}~\cite{brier1950}, the quality of the \emph{calibration}. It measures whether the probabilities are \emph{realistic} (not only whether the ordering is correct): it is the mean squared error between the predicted probability and the actual outcome (0/1). Lower is better (0 = perfect).
+    \item \textbf{F1, MCC and Balanced Accuracy}, the quality of the binary decision at a fixed threshold (here, the prevalence 0,238). The F1 is the harmonic mean of precision and recall (0 to 1). The MCC (Matthews correlation coefficient~\cite{matthews1975}) summarises the full confusion matrix and is robust to imbalance: it ranges from $-1$ to $1$, with 0 = chance. The Balanced Accuracy averages the accuracy on each class separately (0,5 = chance).
 \end{itemize}
 
-\subsection{Recomendación (calidad del \textit{ranking})}
+\subsection{Recommendation (ranking quality)}
 
-Aquí no se predice un número, sino un \emph{orden} de categorías; las métricas miden si las categorías relevantes para el usuario aparecen arriba en una lista de tamaño $K$.
+Here the goal is not to predict a number but an \emph{ordering} of categories; the metrics measure whether the categories relevant to the user appear at the top of a list of size $K$.
 \begin{itemize}
-    \item \textbf{Hit Rate@$K$} (HR@$K$): fracción de usuarios para los que \emph{al menos una} categoría relevante está entre las $K$ recomendadas. Responde ``¿acerté algo en el top-$K$?''. Va de 0 a 1.
-    \item \textbf{NDCG@$K$} (\textit{Normalized Discounted Cumulative Gain})~\cite{jarvelin2002}: como HR pero premia el orden, dando más peso a los aciertos en las primeras posiciones. De 0 a 1.
-    \item MAP@$K$ (\textit{Mean Average Precision}): precisión media a lo largo de la lista, también sensible al orden. De 0 a 1.
+    \item \textbf{Hit Rate@$K$} (HR@$K$): the fraction of users for whom \emph{at least one} relevant category is among the $K$ recommended. It answers ``did I get anything right in the top-$K$?''. It ranges from 0 to 1.
+    \item \textbf{NDCG@$K$} (Normalized Discounted Cumulative Gain)~\cite{jarvelin2002}: like HR but rewarding the ordering, giving more weight to correct hits in the first positions. From 0 to 1.
+    \item MAP@$K$ (Mean Average Precision): the average precision along the list, also sensitive to ordering. From 0 to 1.
 \end{itemize}
 
-\subsection{Previsión temporal}
+\subsection{Temporal forecasting}
 
-Para el volumen semanal de clics se usan métricas de error de predicción (menor es mejor):
+For the weekly click volume, prediction error metrics are used (lower is better):
 \begin{itemize}
-    \item \textbf{MAE} (error absoluto medio) y \textbf{RMSE} (raíz del error cuadrático medio): en las mismas unidades que la serie (clics/semana); el RMSE penaliza más los errores grandes.
-    \item MAPE (error porcentual absoluto medio): el error relativo en \%; cómodo de interpretar pero inestable cuando los valores reales son pequeños.
+    \item \textbf{MAE} (mean absolute error) and \textbf{RMSE} (root mean squared error): in the same units as the series (clicks/week); the RMSE penalises large errors more heavily.
+    \item MAPE (mean absolute percentage error): the relative error in \%; convenient to interpret but unstable when the actual values are small.
 \end{itemize}
 
-\section{Validación sin fuga de datos}
+\section{Validation without data leakage}
 \label{sec:validacion}
 
-La estimación fiable del rendimiento exige evitar la \emph{fuga de datos} (\textit{data leakage}): que el modelo acceda en entrenamiento a información que no tendría en producción, lo que infla artificialmente las métricas~\cite{kaufman2012leakage}. Se emplean tres esquemas según el módulo:
+A reliable estimate of performance requires avoiding data leakage: the model accessing during training information that it would not have in production, which artificially inflates the metrics~\cite{kaufman2012leakage}. Three schemes are used depending on the module:
 \begin{itemize}
-    \item \emph{Validación cruzada agrupada por usuario} (\texttt{GroupKFold}, M2): reparte los datos en 5 \emph{folds} garantizando que ningún usuario esté a la vez en entrenamiento y validación. Es imprescindible aquí porque las variables de un usuario son idénticas en todos sus eventos; sin agrupar, el modelo ``memorizaría'' al usuario y sobreestimaría su capacidad. Mide la generalización a usuarios \emph{nuevos}.
-    \item \emph{Validación cruzada temporal} (\texttt{TimeSeriesSplit}, modelo \textit{warm} y M4): el entrenamiento es siempre \emph{pasado} y la validación \emph{futuro}, respetando el orden cronológico.
-    \item \emph{Reconstrucción solo con \textit{train}} (M3): el segmento de cada usuario se recalcula usando únicamente los datos de entrenamiento, para que no ``conozca'' el periodo de test.
+    \item \emph{User-grouped cross-validation} (\texttt{GroupKFold}, M2): it splits the data into 5 \emph{folds}, guaranteeing that no user is at once in training and validation. It is essential here because a user's features are identical across all their events; without grouping, the model would ``memorise'' the user and overestimate its ability. It measures generalisation to \emph{new} users.
+    \item \emph{Temporal cross-validation} (\texttt{TimeSeriesSplit}, the \textit{warm} model and M4): training is always \emph{past} and validation \emph{future}, respecting the chronological order.
+    \item \emph{Reconstruction using only \textit{train}} (M3): each user's segment is recomputed using only the training data, so that it does not ``know'' the test period.
 \end{itemize}
 
-\paragraph{Corrección de prior (\textit{prior shift}).} El modelo de propensión se entrena con una muestra \emph{balanceada} (\textasciitilde24\,\% de clics) pero en producción la tasa real es $\approx 2$\,\%; sin ajuste, las probabilidades saldrían infladas. La transformación de Dal Pozzolo et al.~\cite{dalpozzolo2015} (ecuación~\ref{eq:prior_correction}) las reescala al prior real. Es monótona: cambia la magnitud de las probabilidades pero \emph{no} su orden, por lo que no afecta a las métricas de \textit{ranking} (PR-AUC, AUC-ROC).
+\paragraph{Prior-shift correction.} The propensity model is trained on a \emph{balanced} sample (\textasciitilde24\,\% clicks) but in production the real rate is $\approx 2$\,\%; without adjustment, the probabilities would come out inflated. The transformation of Dal Pozzolo et al.~\cite{dalpozzolo2015} (equation~\ref{eq:prior_correction}) rescales them to the real prior. It is monotonic: it changes the magnitude of the probabilities but \emph{not} their ordering, and therefore does not affect the ranking metrics (PR-AUC, AUC-ROC).
 
-\paragraph{Validación cruzada frente a \textit{bootstrap}.} Son complementarios y responden a preguntas distintas. La validación cruzada mide \emph{cómo de bien generaliza} el modelo (reentrena $k$ veces, cada dato es test una vez). El \textit{bootstrap} mide la \emph{incertidumbre} de una métrica ya calculada: remuestrea el conjunto de test al azar muchas veces (con reemplazo) y observa cuánto varía la métrica, lo que da un intervalo de confianza sin necesidad de reentrenar.
+\paragraph{Cross-validation versus \textit{bootstrap}.} They are complementary and answer different questions. Cross-validation measures \emph{how well the model generalises} (it retrains $k$ times, each data point being test once). The \textit{bootstrap} measures the \emph{uncertainty} of an already computed metric: it resamples the test set at random many times (with replacement) and observes how much the metric varies, which gives a confidence interval without needing to retrain.
 
-\section{Contraste estadístico}
+\section{Statistical testing}
 \label{sec:tests}
 
-Que un modelo obtenga una métrica algo mejor que otro \emph{no} basta para afirmar que es superior: la diferencia podría deberse al azar de la muestra concreta. Las pruebas estadísticas cuantifican esa duda. La idea común es el \emph{$p$-valor}: la probabilidad de observar una diferencia tan grande como la medida \emph{si en realidad no hubiera diferencia}; un $p<0{,}05$ se interpreta como evidencia de que la diferencia no es casualidad. El uso de pruebas no paramétricas para comparar modelos sigue las recomendaciones de Dem\v{s}ar~\cite{demsar2006}. Las pruebas empleadas son:
+That one model obtains a slightly better metric than another is \emph{not} enough to claim it is superior: the difference could be due to the chance of the particular sample. Statistical tests quantify that doubt. The common idea is the \emph{$p$-value}: the probability of observing a difference as large as the one measured \emph{if there were in fact no difference}; a $p<0{,}05$ is interpreted as evidence that the difference is not coincidental. The use of non-parametric tests to compare models follows the recommendations of Dem\v{s}ar~\cite{demsar2006}. The tests used are:
 
 \begin{itemize}
-    \item \textbf{Intervalo de confianza \textit{bootstrap}}~\cite{efron1979}: se remuestrea el test con reemplazo (1.000 veces) y se recalcula la métrica o su diferencia. Si el intervalo al 95\,\% de una diferencia \emph{no incluye el 0}, la diferencia es robusta. No depende del número de \emph{folds}.
-    \item \textbf{Test de Wilcoxon (pareado)}~\cite{wilcoxon1945}: compara dos modelos \emph{fold a fold}, sin asumir normalidad. \emph{Limitación} importante: con 5 \emph{folds} el menor $p$-valor posible es 0,0625, así que un resultado no significativo puede deberse a falta de potencia, no de diferencia; por eso se apoya en el \textit{bootstrap}.
-    \item \textbf{Test de Friedman}~\cite{friedman1937}: prueba \emph{global} para comparar tres o más métodos sobre los mismos sujetos (``¿hay alguna diferencia entre ellos?''). Se hace antes de comparar pares.
-    \item \textbf{Test de McNemar}~\cite{mcnemar1947}: compara dos métodos \emph{caso a caso} en acierto/fallo, fijándose solo en los casos en que discrepan. Útil para contrastar la tasa de acierto (HR@5) entre el recomendador y un \textit{baseline}.
-    \item \textbf{Corrección de Holm}~\cite{holm1979}: al realizar \emph{varias} comparaciones a la vez, la probabilidad de un falso positivo se acumula. Holm endurece el umbral de significación de forma secuencial (al $p$ más pequeño le exige el listón más estricto), controlando ese riesgo.
-    \item \textbf{Test de Diebold-Mariano (DM)}~\cite{diebold1995}: el equivalente para comparar \emph{predicciones de series temporales}; contrasta los errores semana a semana de dos modelos de \textit{forecast}. Con muestras pequeñas se aplica la corrección de Harvey-Leybourne-Newbold~\cite{harvey1997} (factor de muestra reducida y $t$ de Student), imprescindible aquí por disponer de pocos orígenes.
-    \item \emph{Tamaños de efecto}: el $p$-valor dice si una diferencia existe, no \emph{cómo de grande} es. Se reportan la W de Kendall (para el Friedman; 0 = sin efecto, 1 = efecto máximo) y la correlación rango-biserial $|r|$ (para los Wilcoxon pareados; orientativamente, $0{,}1$ pequeño, $0{,}3$ medio, $0{,}5$ grande).
+    \item \textbf{Bootstrap confidence interval}~\cite{efron1979}: the test set is resampled with replacement (1.000 times) and the metric or its difference is recomputed. If the 95\,\% interval of a difference \emph{does not include 0}, the difference is robust. It does not depend on the number of \emph{folds}.
+    \item \textbf{Wilcoxon test (paired)}~\cite{wilcoxon1945}: it compares two models \emph{fold by fold}, without assuming normality. An important \emph{limitation}: with 5 \emph{folds} the smallest possible $p$-value is 0,0625, so a non-significant result may be due to a lack of power rather than a lack of difference; this is why it is supported by the \textit{bootstrap}.
+    \item \textbf{Friedman test}~\cite{friedman1937}: a \emph{global} test to compare three or more methods over the same subjects (``is there any difference between them?''). It is performed before comparing pairs.
+    \item \textbf{McNemar test}~\cite{mcnemar1947}: it compares two methods \emph{case by case} on success/failure, focusing only on the cases where they disagree. Useful for contrasting the success rate (HR@5) between the recommender and a \textit{baseline}.
+    \item \textbf{Holm correction}~\cite{holm1979}: when performing \emph{several} comparisons at once, the probability of a false positive accumulates. Holm tightens the significance threshold sequentially (requiring the strictest bar of the smallest $p$), controlling that risk.
+    \item \textbf{Diebold-Mariano (DM) test}~\cite{diebold1995}: the equivalent for comparing \emph{time series predictions}; it contrasts the week-by-week errors of two \textit{forecast} models. With small samples the Harvey-Leybourne-Newbold correction~\cite{harvey1997} is applied (a small-sample factor and Student's $t$), essential here given the few available origins.
+    \item \emph{Effect sizes}: the $p$-value tells whether a difference exists, not \emph{how large} it is. We report Kendall's W (for the Friedman; 0 = no effect, 1 = maximum effect) and the rank-biserial correlation $|r|$ (for the paired Wilcoxon tests; as a rough guide, $0{,}1$ small, $0{,}3$ medium, $0{,}5$ large).
 \end{itemize}
 
-Todas las semillas aleatorias se fijan en 42 para garantizar la reproducibilidad (Apéndice~\ref{ap:reproducibilidad}).
+All random seeds are fixed at 42 to guarantee reproducibility (Appendix~\ref{ap:reproducibilidad}).
