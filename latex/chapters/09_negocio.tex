@@ -65,6 +65,8 @@ returns the click probability broken down by sector and by product (truncated he
 }
 \end{lstlisting}
 
+These probabilities are low in absolute terms because they are expressed at the true production prior ($\approx 2$\,\%): a value such as $0{,}046$ does not indicate a low propensity but roughly twice the average click rate, i.e.\ an above-average prospect. This is the expected scale once the sampling bias is corrected, and it is exactly the value on which the ROI decision rule ($p_\text{real}\cdot\text{CPL}\ge$ marginal cost) operates.
+
 The same profile sent to \texttt{POST /recommend/coldstart} returns, instead, the top-5 product categories of the user's demographic cluster:
 
 \begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize,caption={Response --- \texttt{POST /recommend/coldstart} (output)},captionpos=b]
