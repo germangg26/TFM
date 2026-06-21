@@ -29,7 +29,54 @@ The API exposes five \textit{endpoints} (Table~\ref{tab:api}). The inputs to the
 \end{tabular}
 \end{table}
 
-The \texttt{/propensity} \textit{endpoint} returns, for a user or profile, the click probability of each of the 13 sectors and the 25 product categories (each product accompanied by its sector), already corrected to the true \textit{prior} ($\approx 2$\,\%). These are independent probabilities (\textit{one-vs-rest}): each one answers ``what is the click probability if I send this?'' and they do not sum to one. An example response for the most propense product of a given profile would be \texttt{\{"producto":"car\_leasing","sector":"motor","p\_click":0.046\}}.
+The \texttt{/propensity} \textit{endpoint} returns, for a user or profile, the click probability of each of the 13 sectors and the 25 product categories (each product accompanied by its sector), already corrected to the true \textit{prior} ($\approx 2$\,\%). These are independent probabilities (\textit{one-vs-rest}): each one answers ``what is the click probability if I send this?'' and they do not sum to one.
+
+\subsection{Worked example: input and output}
+
+To make the input and output concrete, consider a new user (cold start). The request body is a JSON object with the demographic profile; categorical fields are given as readable text and any field that is omitted takes its default value. For instance, a \texttt{POST /propensity} call with the following input:
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize,caption={Request --- \texttt{POST /propensity} (input profile)},captionpos=b]
+{
+  "age": 38,
+  "gender": "M",
+  "civil_status": "casado",
+  "tiene_coche": true,
+  "ipa_class": "Media-alta",
+  "mun_type": "Ciudad"
+}
+\end{lstlisting}
+
+returns the click probability broken down by sector and by product (truncated here to the top entries). The probabilities are \textit{one-vs-rest} and corrected to the true prior, so they do not add up to one:
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize,caption={Response --- \texttt{POST /propensity} (output, abridged)},captionpos=b]
+{
+  "source": "plano_coldstart",
+  "user_id": null,
+  "sectores": [
+    {"sector": "motor",   "p_click": 0.041},
+    {"sector": "seguros", "p_click": 0.028},
+    {"sector": "teleco",  "p_click": 0.021}
+  ],
+  "productos": [
+    {"producto": "car_leasing",   "sector": "motor",  "p_click": 0.046},
+    {"producto": "car_insurance", "sector": "motor",  "p_click": 0.039},
+    {"producto": "mobile_plan",   "sector": "teleco", "p_click": 0.022}
+  ]
+}
+\end{lstlisting}
+
+The same profile sent to \texttt{POST /recommend/coldstart} returns, instead, the top-5 product categories of the user's demographic cluster:
+
+\begin{lstlisting}[language={},numbers=none,basicstyle=\ttfamily\footnotesize,caption={Response --- \texttt{POST /recommend/coldstart} (output)},captionpos=b]
+{
+  "recommendations": ["car_insurance", "health_insurance", "energy_plan",
+                      "funeral_insurance", "car_leasing"],
+  "source": "cold_start_cluster",
+  "demo_cluster": 3
+}
+\end{lstlisting}
+
+For a \emph{known} user, the \texttt{GET} variants take the \texttt{user\_id} in the path instead of a JSON body and return the same structures, but with \texttt{"source": "cluster\_m1"} (the recommender uses the user's behavioural segment, reported in \texttt{cluster\_id}) and \texttt{"source": "plano\_usuario"} for the propensity breakdown.
 
 \section{Return-on-investment (ROI) analysis}
 \label{sec:roi}
