@@ -7,7 +7,7 @@ This chapter brings together the two levels of unsupervised user segmentation, p
 
 \subsection{Method}
 
-Demographic segmentation aims to assign an expected behaviour profile to new users for whom no interaction history exists (cold start). It is applied to the 35.405 users of the dataset using ten profile variables: age \emph{categorised} into bands (\texttt{age\_cat}, the same as in M2), gender, employment status, marital status, vehicle ownership, household size, number of rooms, purchasing power index (IPA), municipality type and distance to the nearest urban centre. The categorical variables were ordinally encoded according to their semantic meaning before applying standard scaling.
+Demographic segmentation aims to assign an expected behaviour profile to new users for whom no interaction history exists (cold start). It is applied to the 35.405 users of the dataset using ten profile variables: age \emph{categorised} into bands (\texttt{age\_cat}, the same as in M2), gender, employment status, marital status, vehicle ownership, household size, number of rooms, purchasing power index (IPA), municipality type and distance to the provincial capital. The categorical variables were ordinally encoded according to their semantic meaning before applying standard scaling.
 
 \paragraph{Selection of the embedding space.} Three representation spaces were compared for the subsequent clustering by means of the silhouette coefficient with $k=2$ and $n=5.000$ samples: (1) the original standardised space (10 dimensions); (2) a PCA reduction down to 80\,\% of the explained variance (8 components); and (3) a non-linear embedding by means of an autoencoder (4 latent dimensions). The autoencoder has the architecture:
 \[
